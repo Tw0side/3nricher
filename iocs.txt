@@ -1,0 +1,5 @@
+# Sample IOCs for testing 3nricher
+8.8.8.8
+185.220.101.1
+google.com
+44d88612fea8a8f36de82e1278abb02f
