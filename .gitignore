@@ -1,0 +1,7 @@
+venv/
+.env
+__pycache__/
+*.pyc
+report.csv
+report.json
+token.txt
