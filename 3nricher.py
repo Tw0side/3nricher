@@ -89,7 +89,7 @@ def enrich_ioc(ioc: str) -> dict:
         "urlhaus": urlhaus.query(ioc, ioc_type),
     }
 
-    score, risk = calculate_risk(sources_result)
+    score, risk = calculate_risk(sources_result, ioc=ioc, ioc_type=ioc_type)
 
     return {
         "ioc": ioc,

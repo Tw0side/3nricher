@@ -47,6 +47,44 @@ class Config:
     VT_SLEEP_SECONDS: int = int(os.getenv("VT_SLEEP_SECONDS", "16"))
     HTTP_TIMEOUT: int = int(os.getenv("HTTP_TIMEOUT", "15"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
+    
+        # ---- Scoring weights ----
+    # VirusTotal
+    SCORE_VT_PER_MALICIOUS: int = 5
+    SCORE_VT_PER_SUSPICIOUS: int = 2
+    SCORE_VT_MAX: int = 50
+
+    # AbuseIPDB
+    SCORE_ABUSE_MULTIPLIER: float = 0.25
+    SCORE_ABUSE_MAX: int = 25
+
+    # MalwareBazaar — flat score for confirmed malware
+    SCORE_MB_HIT: int = 40
+
+    # URLhaus
+    SCORE_URLHAUS_PER_URL: int = 5
+    SCORE_URLHAUS_MAX: int = 25
+
+    # Thresholds
+    THRESHOLD_CRITICAL: int = 70
+    THRESHOLD_HIGH: int = 45
+    THRESHOLD_MEDIUM: int = 20
+
+    # Floors — minimum label if specific sources hit
+    FLOOR_MB_LABEL: str = "High"        # confirmed malware → at least High
+    FLOOR_ABUSE_100_LABEL: str = "High" # abuse_score 100 → at least High
+
+    # Allowlist — IOCs that should always score Low
+    ALLOWLIST_IPS: tuple[str, ...] = (
+        "8.8.8.8", "8.8.4.4",                    # Google DNS
+        "1.1.1.1", "1.0.0.1",                    # Cloudflare DNS
+        "9.9.9.9",                                # Quad9
+        "208.67.222.222", "208.67.220.220",      # OpenDNS
+    )
+    ALLOWLIST_DOMAINS: tuple[str, ...] = (
+        "google.com", "microsoft.com", "cloudflare.com",
+        "amazon.com", "apple.com", "github.com",
+    )
 
     # ---- Paths ----
     PROJECT_ROOT: Path = PROJECT_ROOT
