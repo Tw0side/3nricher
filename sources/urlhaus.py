@@ -1,9 +1,13 @@
 """
 URLhaus (abuse.ch) enrichment.
 
-Enriches: domains (Iteration 2).
+Enriches: domains and IPs.
 Auth: Auth-Key header.
 Docs: https://urlhaus-api.abuse.ch/
+
+URLhaus catalogs URLs that distribute malware. The host endpoint returns
+the number of malicious URLs hosted on a given domain or IP, along with
+blacklist status.
 """
 import logging
 
@@ -16,11 +20,11 @@ URLHAUS_HOST_URL = "https://urlhaus-api.abuse.ch/v1/host/"
 
 
 def query(ioc: str, ioc_type: str) -> dict:
-    """Query URLhaus for a domain."""
-    if ioc_type != "domain":
+    """Query URLhaus for a domain or IP."""
+    if ioc_type not in ("domain", "ip"):
         return {
             "status": "not_applicable",
-            "reason": "URLhaus supports domains only (Iteration 2)",
+            "reason": "URLhaus supports domains and IPs only",
         }
 
     api_key = Config.ABUSE_CH_API_KEY

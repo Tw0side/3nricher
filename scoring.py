@@ -100,6 +100,12 @@ def calculate_risk(sources: dict, ioc: str = "", ioc_type: str = "") -> tuple[in
             uh.get("url_count", 0) * Config.SCORE_URLHAUS_PER_URL,
             Config.SCORE_URLHAUS_MAX,
         )
+        
+    # ---- OTX: up to 20 pts ----
+    otx = sources.get("otx", {})
+    if otx.get("status") == "ok":
+        pulse_count = otx.get("pulse_count", 0)
+        score += min(pulse_count * 2, 20)
 
     # Cap
     score = min(score, 100)

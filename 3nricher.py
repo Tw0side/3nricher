@@ -20,7 +20,7 @@ from logging_setup import setup_logging
 # Set up logging before importing sources so their loggers are configured
 log = setup_logging()
 
-from sources import virustotal, abuseipdb, malwarebazaar, urlhaus
+from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx
 from scoring import calculate_risk
 from report import write_json, write_csv
 
@@ -87,6 +87,7 @@ def enrich_ioc(ioc: str) -> dict:
         "abuseipdb": abuseipdb.query(ioc, ioc_type),
         "malwarebazaar": malwarebazaar.query(ioc, ioc_type),
         "urlhaus": urlhaus.query(ioc, ioc_type),
+        "otx": otx.query(ioc, ioc_type),
     }
 
     score, risk = calculate_risk(sources_result, ioc=ioc, ioc_type=ioc_type)

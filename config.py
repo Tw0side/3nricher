@@ -42,6 +42,7 @@ class Config:
     VT_API_KEY: str | None = os.getenv("VT_API_KEY")
     ABUSE_API_KEY: str | None = os.getenv("ABUSE_API_KEY")
     ABUSE_CH_API_KEY: str | None = os.getenv("ABUSE_CH_API_KEY")
+    OTX_API_KEY: str | None = os.getenv("OTX_API_KEY")
 
     # ---- Behavior ----
     VT_SLEEP_SECONDS: int = int(os.getenv("VT_SLEEP_SECONDS", "16"))
@@ -112,6 +113,10 @@ class Config:
             warnings.append(
                 "ABUSE_CH_API_KEY not set — MalwareBazaar + URLhaus disabled"
             )
+        if not cls.OTX_API_KEY:
+            warnings.append(
+                "OTX_API_KEY not set — AlienVault OTX enrichment disabled"
+            )
 
         return warnings
 
@@ -134,6 +139,7 @@ class Config:
             "VT_API_KEY": redact(cls.VT_API_KEY),
             "ABUSE_API_KEY": redact(cls.ABUSE_API_KEY),
             "ABUSE_CH_API_KEY": redact(cls.ABUSE_CH_API_KEY),
+            "OTX_API_KEY": redact(cls.OTX_API_KEY),
             "VT_SLEEP_SECONDS": cls.VT_SLEEP_SECONDS,
             "HTTP_TIMEOUT": cls.HTTP_TIMEOUT,
             "LOG_LEVEL": cls.LOG_LEVEL,
