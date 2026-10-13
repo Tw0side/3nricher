@@ -1,5 +1,7 @@
 # 3nricher
 
+[![tests](https://github.com/Tw0side/3nricher/actions/workflows/test.yml/badge.svg)](https://github.com/Tw0side/3nricher/actions/workflows/test.yml)
+
 **Multi-source IOC enrichment pipeline for threat intelligence workflows.**
 
 3nricher ingests Indicators of Compromise (IPs, domains, and file hashes), enriches 
