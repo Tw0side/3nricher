@@ -47,6 +47,7 @@ class Config:
     # ---- Behavior ----
     VT_SLEEP_SECONDS: int = int(os.getenv("VT_SLEEP_SECONDS", "16"))
     HTTP_TIMEOUT: int = int(os.getenv("HTTP_TIMEOUT", "15"))
+    DEFAULT_WORKERS: int = int(os.getenv("DEFAULT_WORKERS", "10"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
     
         # ---- Scoring weights ----

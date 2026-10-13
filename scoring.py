@@ -15,6 +15,7 @@ Design notes:
 import logging
 
 from config import Config
+from recency import recency_multiplier
 
 log = logging.getLogger("3nricher.scoring")
 
@@ -80,26 +81,30 @@ def calculate_risk(sources: dict, ioc: str = "", ioc_type: str = "") -> tuple[in
             Config.SCORE_VT_MAX,
         )
 
-    # ---- AbuseIPDB ----
+    # ---- AbuseIPDB ---- (with recency weighting) ----
     abuse = sources.get("abuseipdb", {})
     if abuse.get("status") == "ok":
-        score += min(
+        raw = min(
             int(abuse.get("abuse_score", 0) * Config.SCORE_ABUSE_MULTIPLIER),
             Config.SCORE_ABUSE_MAX,
         )
+        mult = recency_multiplier(abuse.get("last_reported"))
+        score += int(raw * mult)
 
     # ---- MalwareBazaar ----
     mb = sources.get("malwarebazaar", {})
     if mb.get("status") == "ok":
         score += Config.SCORE_MB_HIT
 
-    # ---- URLhaus ----
+    # ---- URLhaus ---- (with recency weighting) ----
     uh = sources.get("urlhaus", {})
     if uh.get("status") == "ok":
-        score += min(
+        raw = min(
             uh.get("url_count", 0) * Config.SCORE_URLHAUS_PER_URL,
             Config.SCORE_URLHAUS_MAX,
         )
+        mult = recency_multiplier(uh.get("first_seen"))
+        score += int(raw * mult)
         
     # ---- OTX: up to 20 pts ----
     otx = sources.get("otx", {})
