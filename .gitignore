@@ -7,3 +7,7 @@ report.json
 token.txt
 test.py
 .pytest_cache/
+
+# Iteration 4 — generated report patterns
+report*.json
+report*.csv

@@ -18,10 +18,12 @@ def _build_payload(results: list[dict]) -> dict:
     """Build the JSON payload wrapper with metadata."""
     return {
         "tool": "3nricher",
-        "version": "0.2.0",
+        "version": "0.4.0",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "total_iocs": len(results),
-        "sources_queried": ["virustotal", "abuseipdb", "malwarebazaar", "urlhaus"],
+        "sources_queried": [
+            "virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx",
+        ],
         "results": results,
     }
 
@@ -53,11 +55,11 @@ def write_csv(results: list[dict], path: str) -> None:
     a single "errors" column.
     """
     fieldnames = [
-        "ioc", "type", "risk", "risk_score",
+        "ioc", "type", "risk", "risk_score","rationale",
         "vt_status", "vt_malicious", "vt_suspicious", "vt_harmless",
         "abuse_status", "abuse_score", "abuse_country", "abuse_isp", "abuse_reports",
         "mb_status", "mb_signature", "mb_file_type", "mb_first_seen",
-        "uh_status", "uh_url_count", "uh_threat",
+        "uh_status", "uh_url_count", "uh_threat","otx_status", "otx_pulses",
         "errors",
     ]
 
@@ -72,6 +74,7 @@ def write_csv(results: list[dict], path: str) -> None:
                 abuse = sources.get("abuseipdb", {})
                 mb = sources.get("malwarebazaar", {})
                 uh = sources.get("urlhaus", {})
+                otx = sources.get("otx", {})
 
                 errors = [
                     f"{name}: {s.get('reason', 'unknown')}"
@@ -84,6 +87,7 @@ def write_csv(results: list[dict], path: str) -> None:
                     "type": r.get("type", ""),
                     "risk": r.get("risk", ""),
                     "risk_score": r.get("risk_score", ""),
+                    "rationale": " | ".join(r.get("rationale", [])),
                     "vt_status": vt.get("status", ""),
                     "vt_malicious": vt.get("malicious", ""),
                     "vt_suspicious": vt.get("suspicious", ""),
@@ -100,6 +104,8 @@ def write_csv(results: list[dict], path: str) -> None:
                     "uh_status": uh.get("status", ""),
                     "uh_url_count": uh.get("url_count", ""),
                     "uh_threat": uh.get("threat", ""),
+                    "otx_status": otx.get("status", ""),
+                    "otx_pulses": otx.get("pulse_count", ""),
                     "errors": "; ".join(errors),
                 })
 

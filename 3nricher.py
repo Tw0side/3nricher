@@ -2,31 +2,29 @@
 """
 3nricher — IOC Enrichment Pipeline
 
-Iteration 2: Multi-source enrichment across VirusTotal, AbuseIPDB,
-MalwareBazaar, and URLhaus. Produces nested JSON and wide CSV reports
-with weighted risk scoring.
+Iteration 4: Parallel multi-source enrichment with score rationale.
 
 Usage:
     python 3nricher.py -f iocs.txt -o report
+    python 3nricher.py -f iocs.txt --workers 20
+    python 3nricher.py -f iocs.txt --no-parallel
 """
 import argparse
 import re
 import sys
-import time
 
 from config import Config
 from logging_setup import setup_logging
 
-# Set up logging before importing sources so their loggers are configured
+# Set up logging before importing enrichment so its loggers are configured
 log = setup_logging()
 
-from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx
-from scoring import calculate_risk
+from enrichment import enrich_all
 from report import write_json, write_csv
 
 
 # ---------------------------------------------------------------
-# IOC type detection
+# IOC type detection (used by enrichment.py via lazy import)
 # ---------------------------------------------------------------
 def detect_ioc_type(ioc: str) -> str:
     """
@@ -71,75 +69,19 @@ def load_iocs(path: str) -> list[str]:
 
 
 # ---------------------------------------------------------------
-# Enrichment
-# ---------------------------------------------------------------
-def enrich_ioc(ioc: str) -> dict:
-    """
-    Enrich a single IOC across all sources.
-
-    Each source self-declares applicability; the orchestrator does
-    not need per-source logic.
-    """
-    ioc_type = detect_ioc_type(ioc)
-
-    sources_result = {
-        "virustotal": virustotal.query(ioc, ioc_type),
-        "abuseipdb": abuseipdb.query(ioc, ioc_type),
-        "malwarebazaar": malwarebazaar.query(ioc, ioc_type),
-        "urlhaus": urlhaus.query(ioc, ioc_type),
-        "otx": otx.query(ioc, ioc_type),
-    }
-
-    score, risk = calculate_risk(sources_result, ioc=ioc, ioc_type=ioc_type)
-
-    return {
-        "ioc": ioc,
-        "type": ioc_type,
-        "risk": risk,
-        "risk_score": score,
-        "sources": sources_result,
-    }
-
-
-def run_enrichment(iocs: list[str]) -> list[dict]:
-    """
-    Enrich a list of IOCs sequentially, printing progress to stdout.
-
-    Sleeps between VT calls to respect the free-tier rate limit
-    (4 requests/minute → 16 second gap).
-    """
-    results = []
-    total = len(iocs)
-
-    for i, ioc in enumerate(iocs, 1):
-        if i > 1:
-            log.debug("Sleeping %ds to respect VT rate limit", Config.VT_SLEEP_SECONDS)
-            time.sleep(Config.VT_SLEEP_SECONDS)
-
-        print(f"[{i}/{total}] Enriching {ioc} ...", end=" ", flush=True)
-        result = enrich_ioc(ioc)
-        results.append(result)
-        print(f"{result['risk']} ({result['risk_score']})")
-
-    return results
-
-
-# ---------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------
 def main():
-    # Fail fast if VT key is missing (required)
     if not Config.VT_API_KEY:
         log.error("VT_API_KEY is required. Cannot proceed.")
         sys.exit(1)
 
-    # Warn about optional missing keys
     for warning in Config.validate():
         log.warning(warning)
 
     parser = argparse.ArgumentParser(
         prog="3nricher",
-        description="IOC enrichment pipeline (Iteration 2: multi-source)",
+        description="IOC enrichment pipeline (Iteration 4: parallel + rationale)",
     )
     parser.add_argument(
         "-f", "--file",
@@ -156,9 +98,19 @@ def main():
         default=None,
         help="Override log level: DEBUG, INFO, WARNING, ERROR",
     )
+    parser.add_argument(
+        "--no-parallel",
+        action="store_true",
+        help="Disable parallel enrichment (sequential mode)",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=10,
+        help="Number of parallel worker threads (default: 10)",
+    )
     args = parser.parse_args()
 
-    # If user passed --log-level, reconfigure logging
     if args.log_level:
         setup_logging(args.log_level)
 
@@ -174,7 +126,8 @@ def main():
 
     log.info("Found %d IOC(s). Starting enrichment...", len(iocs))
 
-    results = run_enrichment(iocs)
+    parallel = not args.no_parallel
+    results = enrich_all(iocs, parallel=parallel, workers=args.workers)
 
     json_path = f"{args.output}.json"
     csv_path = f"{args.output}.csv"
