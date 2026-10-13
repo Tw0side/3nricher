@@ -1,0 +1,10 @@
+{
+  "query_status": "ok",
+  "urls_online": 3,
+  "blacklists": {
+    "spamhaus_dbl": "not listed",
+    "surbl": "listed"
+  },
+  "firstseen": "2026-10-10 14:22:00",
+  "threat": "malware_download"
+}

@@ -1,0 +1,15 @@
+{
+  "pulse_info": {
+    "count": 50,
+    "pulses": [
+      {
+        "name": "WannaCry linked Lazarus indicators",
+        "tags": ["ransomware", "north korea", "wannacry"]
+      },
+      {
+        "name": "Anonymization_Network | Oct 2026",
+        "tags": ["probing", "scanning"]
+      }
+    ]
+  }
+}

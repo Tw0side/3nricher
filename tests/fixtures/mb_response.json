@@ -1,0 +1,14 @@
+{
+  "query_status": "ok",
+  "data": [
+    {
+      "sha256_hash": "ed01ebfbc9eb5bbea545af4d01bf5f1071661840480439c6e5babe8e080e41aa",
+      "md5_hash": "84c82835a5d21bbcf75a61706d8ab549",
+      "first_seen": "2020-07-15 08:04:18",
+      "file_name": "important.exe",
+      "file_type": "exe",
+      "signature": "WannaCry",
+      "tags": ["WannaCry"]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "data": {
+    "attributes": {
+      "last_analysis_stats": {
+        "malicious": 13,
+        "suspicious": 4,
+        "harmless": 45,
+        "undetected": 8,
+        "timeout": 0,
+        "confirmed-timeout": 0,
+        "failure": 0,
+        "type-unsupported": 0
+      }
+    }
+  }
+}

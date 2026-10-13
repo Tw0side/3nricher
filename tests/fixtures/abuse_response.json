@@ -1,0 +1,17 @@
+{
+  "data": {
+    "ipAddress": "185.220.101.1",
+    "isPublic": true,
+    "ipVersion": 4,
+    "isWhitelisted": false,
+    "abuseConfidenceScore": 100,
+    "countryCode": "DE",
+    "usageType": "Data Center/Web Hosting/Transit",
+    "isp": "Artikel10 e.V.",
+    "domain": "artikel10.org",
+    "hostnames": [],
+    "totalReports": 408,
+    "numDistinctUsers": 42,
+    "lastReportedAt": "2026-10-11T12:00:09+00:00"
+  }
+}

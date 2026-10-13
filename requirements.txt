@@ -1,6 +1,5 @@
 requests
 python-dotenv
-responses
 pytest
 pytest-mock
-ruff
+responses

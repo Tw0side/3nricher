@@ -6,3 +6,4 @@ report.csv
 report.json
 token.txt
 test.py
+.pytest_cache/
