@@ -87,42 +87,83 @@ def main():
         description="IOC enrichment pipeline (Iteration 5: parallel + rationale + cache + persistence)",
     )
     parser.add_argument(
-        "-f", "--file",
-        required=True,
-        help="File of IOCs, one per line (# for comments)",
-    )
-    parser.add_argument(
-        "-o", "--output",
-        default="report",
-        help="Output basename, no extension (default: report)",
-    )
-    parser.add_argument(
         "--log-level",
         default=None,
         help="Override log level: DEBUG, INFO, WARNING, ERROR",
     )
-    parser.add_argument(
+
+    # Subcommands
+    subparsers = parser.add_subparsers(dest="command")
+
+    # --- enrich subcommand (default) ---
+    enrich_parser = subparsers.add_parser(
+        "enrich",
+        help="Enrich a batch of IOCs from a file (default)",
+    )
+    enrich_parser.add_argument(
+        "-f", "--file",
+        required=True,
+        help="File of IOCs, one per line (# for comments)",
+    )
+    enrich_parser.add_argument(
+        "-o", "--output",
+        default="report",
+        help="Output basename, no extension (default: report)",
+    )
+    enrich_parser.add_argument(
         "--no-parallel",
         action="store_true",
         help="Disable parallel enrichment (sequential mode)",
     )
-    parser.add_argument(
+    enrich_parser.add_argument(
         "--workers",
         type=int,
         default=10,
         help="Number of parallel worker threads (default: 10)",
     )
-    parser.add_argument(
+    enrich_parser.add_argument(
         "--no-persist",
         action="store_true",
         help="Skip writing to the history database",
     )
+
+    # --- query subcommand ---
+    query_parser = subparsers.add_parser(
+        "query",
+        help="Enrich a single IOC and print a summary",
+    )
+    query_parser.add_argument(
+        "ioc",
+        help="The IOC to enrich (IP, domain, or file hash)",
+    )
+    query_parser.add_argument(
+        "--no-history",
+        action="store_true",
+        help="Don't show prior enrichment history",
+    )
+
+    # --- Backward compatibility ---
+    # If the first positional arg is not a known subcommand,
+    # assume `enrich` and parse the old-style args.
+    if len(sys.argv) > 1 and sys.argv[1] not in ("enrich", "query"):
+        # Insert "enrich" as the subcommand
+        sys.argv.insert(1, "enrich")
+
     args = parser.parse_args()
 
     if args.log_level:
         setup_logging(args.log_level)
-        
 
+    if args.command == "query":
+        from cli_query import run_query
+        sys.exit(run_query(args.ioc, show_history=not args.no_history))
+
+    # Default: enrich mode
+    _run_enrich(args)
+
+
+def _run_enrich(args):
+    """Run the batch enrichment flow."""
     log.info("Loading IOCs from %s", args.file)
     try:
         iocs = load_iocs(args.file)
@@ -154,8 +195,6 @@ def main():
             log.info("Persisted to history DB (run_id=%s)", run_id)
         except Exception as e:
             log.warning("Failed to persist to history DB: %s", e)
-    else:
-        log.debug("Skipping history DB persistence (--no-persist)")
 
     print(f"\n[+] JSON report saved to {json_path}")
     print(f"[+] CSV report saved to {csv_path}")
