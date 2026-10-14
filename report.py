@@ -16,14 +16,17 @@ log = logging.getLogger("3nricher.report")
 
 def _build_payload(results: list[dict]) -> dict:
     """Build the JSON payload wrapper with metadata."""
+    from storage.cache import cache_stats
+
     return {
         "tool": "3nricher",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "total_iocs": len(results),
         "sources_queried": [
             "virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx",
         ],
+        "cache_stats": cache_stats(),
         "results": results,
     }
 

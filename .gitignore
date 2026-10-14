@@ -11,3 +11,8 @@ test.py
 # Iteration 4 — generated report patterns
 report*.json
 report*.csv
+
+# Iteration 5 — cache and DB
+cache/
+*.sqlite
+*.db

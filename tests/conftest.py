@@ -49,3 +49,33 @@ def fake_api_keys(monkeypatch):
     monkeypatch.setattr(Config, "ABUSE_API_KEY", "test-abuse-key")
     monkeypatch.setattr(Config, "ABUSE_CH_API_KEY", "test-abusech-key")
     monkeypatch.setattr(Config, "OTX_API_KEY", "test-otx-key")
+    
+@pytest.fixture(autouse=True)
+def disable_http_cache(monkeypatch):
+    """
+    Disable HTTP caching during tests.
+
+    The `responses` library mocks HTTP responses, but requests-cache
+    sits in front of it. If a real response is cached from a prior run,
+    it will be returned instead of the mock — breaking tests.
+
+    This fixture forces plain requests.Session for all tests and
+    resets the singleton between tests.
+    """
+    monkeypatch.setenv("CACHE_ENABLED", "false")
+
+    # Reset the module-level session singleton
+    try:
+        from storage.cache import reset_session
+        reset_session()
+    except ImportError:
+        pass
+
+    yield
+
+    # Reset again after the test — clean state for next test
+    try:
+        from storage.cache import reset_session
+        reset_session()
+    except ImportError:
+        pass

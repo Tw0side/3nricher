@@ -6,12 +6,23 @@ Provides a consistent HTTP request wrapper with:
 - Retry with exponential backoff + jitter
 - Respects the Retry-After header from rate-limited APIs
 - Centralized timeout enforcement
+- Transparent HTTP response caching (via storage.cache)
+
+Usage:
+    from sources.base import safe_request, http_error_reason
+
+    response, error = safe_request("GET", url, headers=headers)
+    if error:
+        return error
+    return response.json()
 """
 import logging
 import random
 import time
 
 import requests
+
+from storage.cache import get_session
 
 log = logging.getLogger("3nricher.sources")
 
@@ -32,7 +43,7 @@ def safe_request(
     backoff_base: float = DEFAULT_BACKOFF_BASE,
 ) -> tuple[requests.Response | None, dict | None]:
     """
-    Make an HTTP request with structured error handling and retry.
+    Make an HTTP request with structured error handling, retry, and caching.
 
     Retries on:
     - Network errors (timeout, connection refused, DNS failure)
@@ -41,6 +52,23 @@ def safe_request(
 
     Uses exponential backoff with jitter, and honors the Retry-After
     header when the server sends one.
+
+    Cached error responses (429 / 5xx from a prior run) are discarded
+    and refetched so stale failures don't mask a recovered API.
+
+    Args:
+        method:        "GET" or "POST"
+        url:           Full URL
+        headers:       Optional request headers
+        params:        Optional query parameters (GET)
+        data:          Optional form data (POST)
+        timeout:       Request timeout in seconds
+        retries:       Max number of retry attempts after the first failure
+        backoff_base:  Base delay for exponential backoff (seconds)
+
+    Returns:
+        On success:  (response, None)
+        On failure:  (None, {"status": "error", "reason": "..."})
     """
     method = method.upper()
 
@@ -48,18 +76,19 @@ def safe_request(
         return None, {"status": "error", "reason": f"unsupported method: {method}"}
 
     last_response: requests.Response | None = None
+    session = get_session()
 
     for attempt in range(retries + 1):
         is_last_attempt = (attempt == retries)
 
-        # ---- Network call ----
+        # ---- Network call (through cached session) ----
         try:
             if method == "GET":
-                r = requests.get(
+                r = session.get(
                     url, headers=headers, params=params, timeout=timeout,
                 )
             else:  # POST
-                r = requests.post(
+                r = session.post(
                     url, headers=headers, params=params, data=data, timeout=timeout,
                 )
         except requests.Timeout:
@@ -85,14 +114,34 @@ def safe_request(
             _sleep_backoff(attempt, backoff_base, url, "request exception")
             continue
 
-        # ---- Got a response — decide whether to retry ----
+        # ---- Got a response ----
         last_response = r
 
-        if r.status_code == 429 or 500 <= r.status_code < 600:
+        # If we got a cached error response, discard and refetch.
+        # Rationale: a 429 or 5xx cached from a bad moment shouldn't
+        # mask a healthy API forever.
+        if getattr(r, "from_cache", False) and _is_error_status(r.status_code):
+            log.debug(
+                "Discarding cached error response for %s (HTTP %d)",
+                url, r.status_code,
+            )
+            _invalidate_cached_url(url, method, params, data)
+
             if is_last_attempt:
                 log.warning("HTTP %d from %s after %d attempt(s)",
                             r.status_code, url, attempt + 1)
-                return r, None  # return the response — caller decides
+                return r, None  # give up — caller sees the error
+
+            _sleep_backoff(attempt, backoff_base, url,
+                           f"cached HTTP {r.status_code}")
+            continue
+
+        # ---- Retry logic for rate limits / server errors ----
+        if _is_error_status(r.status_code):
+            if is_last_attempt:
+                log.warning("HTTP %d from %s after %d attempt(s)",
+                            r.status_code, url, attempt + 1)
+                return r, None  # return response, caller decides
 
             retry_after = _parse_retry_after(r)
             if retry_after is not None:
@@ -105,11 +154,43 @@ def safe_request(
                 _sleep_backoff(attempt, backoff_base, url, f"HTTP {r.status_code}")
             continue
 
-        # Non-retryable status — return immediately
+        # Non-retryable success status — return immediately
         return r, None
 
     # Safety net (should not be reached)
     return last_response, None
+
+
+# ---------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------
+def _is_error_status(status_code: int) -> bool:
+    """True for HTTP 429 or 5xx."""
+    return status_code == 429 or 500 <= status_code < 600
+
+
+def _invalidate_cached_url(
+    url: str,
+    method: str,
+    params: dict | None,
+    data: dict | None,
+) -> None:
+    """Remove a cached response so the next call hits the API."""
+    try:
+        session = get_session()
+        cache = getattr(session, "cache", None)
+        if cache is None:
+            return
+
+        # requests-cache 1.3.x: delete by URL
+        # NOTE: exact delete API varies; keep it defensive
+        if hasattr(cache, "delete"):
+            cache.delete(urls=[url])
+        elif hasattr(cache, "remove_expired_responses"):
+            # Fallback: no-op, log for visibility
+            log.debug("Cache delete unavailable for %s", url)
+    except Exception as e:  # pragma: no cover — best-effort cleanup
+        log.debug("Failed to invalidate cache for %s: %s", url, e)
 
 
 def _backoff_delay(attempt: int, base: float) -> float:
