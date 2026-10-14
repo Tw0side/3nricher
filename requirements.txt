@@ -4,3 +4,4 @@ tqdm
 pytest
 pytest-mock
 responses
+requests-cache
