@@ -1,0 +1,38 @@
+# Version control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Generated artifacts
+cache/
+data/
+report*.json
+report*.csv
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Docs / repo meta
+v1/
+LICENSE
+README.md

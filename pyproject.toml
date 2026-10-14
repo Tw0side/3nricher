@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "3nricher"
+version = "0.5.0"
+description = "Multi-source IOC enrichment pipeline for threat intelligence workflows"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Tw0side" },
+]
+keywords = [
+    "threat-intelligence",
+    "cti",
+    "ioc",
+    "enrichment",
+    "virustotal",
+    "abuseipdb",
+    "cybersecurity",
+    "soc",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
+
+dependencies = [
+    "requests>=2.30",
+    "python-dotenv>=1.0",
+    "requests-cache>=1.0",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-mock>=3.10",
+    "responses>=0.24",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/Tw0side/3nricher"
+Repository = "https://github.com/Tw0side/3nricher"
+Issues = "https://github.com/Tw0side/3nricher/issues"
+
+[project.scripts]
+3nricher = "cli:main"
+
+[tool.setuptools]
+py-modules = [
+    "3nricher",
+    "cli",
+    "cli_query",
+    "config",
+    "enrichment",
+    "logging_setup",
+    "rationale",
+    "recency",
+    "report",
+    "scoring",
+]
+
+[tool.setuptools.packages.find]
+include = ["sources*", "storage*", "tests*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E501"]

@@ -10,6 +10,7 @@ Usage:
     python 3nricher.py -f iocs.txt --workers 20
     python 3nricher.py -f iocs.txt --no-parallel
     python 3nricher.py -f iocs.txt --no-persist
+    python 3nricher.py query 8.8.8.8
 """
 import argparse
 import re
@@ -75,16 +76,12 @@ def load_iocs(path: str) -> list[str]:
 # CLI
 # ---------------------------------------------------------------
 def main():
-    if not Config.VT_API_KEY:
-        log.error("VT_API_KEY is required. Cannot proceed.")
-        sys.exit(1)
-
-    for warning in Config.validate():
-        log.warning(warning)
-
     parser = argparse.ArgumentParser(
         prog="3nricher",
-        description="IOC enrichment pipeline (Iteration 5: parallel + rationale + cache + persistence)",
+        description=(
+            "IOC enrichment pipeline "
+            "(Iteration 5: parallel + rationale + cache + persistence)"
+        ),
     )
     parser.add_argument(
         "--log-level",
@@ -150,6 +147,15 @@ def main():
         sys.argv.insert(1, "enrich")
 
     args = parser.parse_args()
+
+    # --- Config validation happens AFTER argparse ---
+    # This ensures --help works even without API keys.
+    if not Config.VT_API_KEY:
+        log.error("VT_API_KEY is required. Cannot proceed.")
+        sys.exit(1)
+
+    for warning in Config.validate():
+        log.warning(warning)
 
     if args.log_level:
         setup_logging(args.log_level)
