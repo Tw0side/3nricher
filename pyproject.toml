@@ -58,8 +58,10 @@ Issues = "https://github.com/Tw0side/3nricher/issues"
 3nricher = "cli:main"
 
 [tool.setuptools]
+# Only include valid Python module names. "3nricher" starts with a digit
+# and cannot be a py-module in setuptools. The CLI entry point goes through
+# cli.py which imports "3nricher" at runtime via importlib.
 py-modules = [
-    "3nricher",
     "cli",
     "cli_query",
     "config",

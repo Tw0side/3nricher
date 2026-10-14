@@ -22,3 +22,9 @@ data/
 *.db
 *.db-shm
 *.db-wal
+
+# Python packaging artifacts
+*.egg-info/
+*.egg
+build/
+dist/
