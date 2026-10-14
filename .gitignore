@@ -16,3 +16,9 @@ report*.csv
 cache/
 *.sqlite
 *.db
+
+# Iteration 5 — database files
+data/
+*.db
+*.db-shm
+*.db-wal

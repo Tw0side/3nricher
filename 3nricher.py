@@ -2,12 +2,14 @@
 """
 3nricher — IOC Enrichment Pipeline
 
-Iteration 4: Parallel multi-source enrichment with score rationale.
+Iteration 5: Parallel multi-source enrichment with HTTP caching and
+enrichment history persistence.
 
 Usage:
     python 3nricher.py -f iocs.txt -o report
     python 3nricher.py -f iocs.txt --workers 20
     python 3nricher.py -f iocs.txt --no-parallel
+    python 3nricher.py -f iocs.txt --no-persist
 """
 import argparse
 import re
@@ -21,6 +23,7 @@ log = setup_logging()
 
 from enrichment import enrich_all
 from report import write_json, write_csv
+from storage.history import record_run
 
 
 # ---------------------------------------------------------------
@@ -81,7 +84,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog="3nricher",
-        description="IOC enrichment pipeline (Iteration 4: parallel + rationale)",
+        description="IOC enrichment pipeline (Iteration 5: parallel + rationale + cache + persistence)",
     )
     parser.add_argument(
         "-f", "--file",
@@ -108,6 +111,11 @@ def main():
         type=int,
         default=10,
         help="Number of parallel worker threads (default: 10)",
+    )
+    parser.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Skip writing to the history database",
     )
     args = parser.parse_args()
 
@@ -137,6 +145,16 @@ def main():
         write_csv(results, csv_path)
     except OSError:
         sys.exit(1)
+
+    # Persist to history DB (non-fatal if it fails)
+    if not args.no_persist:
+        try:
+            run_id = record_run(results)
+            log.info("Persisted to history DB (run_id=%s)", run_id)
+        except Exception as e:
+            log.warning("Failed to persist to history DB: %s", e)
+    else:
+        log.debug("Skipping history DB persistence (--no-persist)")
 
     print(f"\n[+] JSON report saved to {json_path}")
     print(f"[+] CSV report saved to {csv_path}")
