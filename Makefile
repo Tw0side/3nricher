@@ -99,7 +99,7 @@ query: build
 		--env-file .env \
 		-v $(CACHE_VOL):/app/cache \
 		-v $(DATA_VOL):/app/data \
-		$(IMAGE) query $(IOC)
+		$(IMAGE) query $(IOC) || true
 
 # ------------------------------------------------------------
 # test — run the local test suite
