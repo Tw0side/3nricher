@@ -121,6 +121,7 @@ def main():
 
     if args.log_level:
         setup_logging(args.log_level)
+        
 
     log.info("Loading IOCs from %s", args.file)
     try:
