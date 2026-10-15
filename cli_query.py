@@ -76,7 +76,29 @@ def _print_summary(result: dict) -> None:
     print(f"IOC:   {result.get('ioc', '')}")
     print(f"Type:  {result.get('type', '')}")
     print(f"Risk:  {risk} ({score})")
+
+    # Compact ATT&CK summary if any techniques were found
+    attack = result.get("attack", [])
+    if attack:
+        ids = ", ".join(t.get("id", "") for t in attack)
+        print(f"ATT&CK: {ids}")
+
     print()
+
+    # ATT&CK techniques
+    attack = result.get("attack", [])
+    if attack:
+        print("MITRE ATT&CK:")
+        for tech in attack:
+            tech_id = tech.get("id", "")
+            name = tech.get("name", "")
+            tactic = tech.get("tactic", "")
+            source = tech.get("source", "")
+            tactic_str = f" [{tactic}]" if tactic else ""
+            print(f"  {tech_id:12s} {name}{tactic_str}")
+            if source:
+                print(f"               Source: {source}")
+        print()
 
     # Sources
     print("Sources:")

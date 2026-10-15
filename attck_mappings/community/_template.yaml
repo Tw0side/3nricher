@@ -1,0 +1,20 @@
+# ATT&CK Mapping Template
+#
+# Copy this file to a new name (e.g., "yourmalware.yaml") and fill in the
+# fields. See attck_mappings/README.md for full documentation.
+#
+# Please include at least one reference URL from attack.mitre.org.
+
+malware: your-malware-name
+aliases:
+  - alternative-spelling
+  - another-alias
+category: ransomware  # or: trojan, rat, worm, loader, post-exploitation
+
+references:
+  - https://attack.mitre.org/software/S0000/
+
+techniques:
+  - id: T0000
+    name: Replace With Real Technique Name
+    tactic: replace-with-real-tactic

@@ -1,0 +1,41 @@
+# LockBit — Ransomware-as-a-Service (2019-present)
+#
+# LockBit is one of the most prolific ransomware families, operated as
+# a Ransomware-as-a-Service (RaaS). Multiple variants exist (2.0, 3.0, Black).
+#
+# References:
+#   https://attack.mitre.org/software/S1192/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-165a
+
+malware: lockbit
+aliases:
+  - lockbit 2.0
+  - lockbit 3.0
+  - lockbit black
+  - lockbit2
+  - lockbit3
+category: ransomware
+
+references:
+  - https://attack.mitre.org/software/S1192/
+
+techniques:
+  - id: T1486
+    name: Data Encrypted for Impact
+    tactic: impact
+
+  - id: T1490
+    name: Inhibit System Recovery
+    tactic: impact
+
+  - id: T1562.001
+    name: "Impair Defenses: Disable or Modify Tools"
+    tactic: defense-evasion
+
+  - id: T1078
+    name: Valid Accounts
+    tactic: defense-evasion
+
+  - id: T1021.001
+    name: "Remote Services: Remote Desktop Protocol"
+    tactic: lateral-movement

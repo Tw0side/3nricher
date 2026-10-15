@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx
 from scoring import calculate_risk
 from rationale import build_rationale
+from attck import map_to_attck
 
 log = logging.getLogger("3nricher.enrichment")
 
@@ -72,6 +73,8 @@ def enrich_one(ioc: str) -> dict:
     )
 
     rationale = build_rationale(sources_result, score, risk)
+    
+    attack = map_to_attck(sources_result)
 
     return {
         "ioc": ioc,
@@ -79,6 +82,7 @@ def enrich_one(ioc: str) -> dict:
         "risk": risk,
         "risk_score": score,
         "rationale": rationale,
+        "attack": attack,
         "sources": sources_result,
     }
 
@@ -91,6 +95,7 @@ def _error_result(ioc: str, reason: str) -> dict:
         "risk": "Unknown",
         "risk_score": 0,
         "rationale": [f"Enrichment failed: {reason}"],
+        "attack": [],
         "sources": {},
         "error": reason,
     }

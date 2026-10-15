@@ -1,0 +1,45 @@
+# Cobalt Strike — Legitimate penetration testing tool abused by attackers
+#
+# Cobalt Strike is a commercial adversary simulation tool. Its Beacon
+# payload is heavily abused by APT groups and ransomware operators for
+# post-exploitation command-and-control.
+#
+# References:
+#   https://attack.mitre.org/software/S0154/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-165a
+
+malware: cobalt strike
+aliases:
+  - cobaltstrike
+  - cobalt_strike
+  - beacon
+  - cs beacon
+category: post-exploitation
+
+references:
+  - https://attack.mitre.org/software/S0154/
+
+techniques:
+  - id: T1071.001
+    name: "Application Layer Protocol: Web Protocols"
+    tactic: command-and-control
+
+  - id: T1055
+    name: Process Injection
+    tactic: defense-evasion
+
+  - id: T1027
+    name: Obfuscated Files or Information
+    tactic: defense-evasion
+
+  - id: T1059.001
+    name: "Command and Scripting Interpreter: PowerShell"
+    tactic: execution
+
+  - id: T1021.001
+    name: "Remote Services: Remote Desktop Protocol"
+    tactic: lateral-movement
+
+  - id: T1572
+    name: Protocol Tunneling
+    tactic: command-and-control

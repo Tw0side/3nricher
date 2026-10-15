@@ -17,16 +17,18 @@ log = logging.getLogger("3nricher.report")
 def _build_payload(results: list[dict]) -> dict:
     """Build the JSON payload wrapper with metadata."""
     from storage.cache import cache_stats
+    from attck_loader import stats as attck_stats
 
     return {
         "tool": "3nricher",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "total_iocs": len(results),
         "sources_queried": [
             "virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx",
         ],
         "cache_stats": cache_stats(),
+        "attck_stats": attck_stats(),
         "results": results,
     }
 
@@ -58,7 +60,7 @@ def write_csv(results: list[dict], path: str) -> None:
     a single "errors" column.
     """
     fieldnames = [
-        "ioc", "type", "risk", "risk_score","rationale",
+        "ioc", "type", "risk", "risk_score","attack_ids","rationale",
         "vt_status", "vt_malicious", "vt_suspicious", "vt_harmless",
         "abuse_status", "abuse_score", "abuse_country", "abuse_isp", "abuse_reports",
         "mb_status", "mb_signature", "mb_file_type", "mb_first_seen",
@@ -90,6 +92,7 @@ def write_csv(results: list[dict], path: str) -> None:
                     "type": r.get("type", ""),
                     "risk": r.get("risk", ""),
                     "risk_score": r.get("risk_score", ""),
+                    "attack_ids": ";".join(t.get("id", "") for t in r.get("attack", [])),
                     "rationale": " | ".join(r.get("rationale", [])),
                     "vt_status": vt.get("status", ""),
                     "vt_malicious": vt.get("malicious", ""),

@@ -1,0 +1,37 @@
+# WannaCry — Ransomware worm (2017)
+#
+# WannaCry was a global ransomware attack in May 2017 that exploited the
+# EternalBlue SMB vulnerability to spread. It affected 200,000+ systems in
+# 150 countries.
+#
+# References:
+#   https://attack.mitre.org/software/S0366/
+#   https://www.cisa.gov/news-events/alerts/2017/05/12/wannacrypt-ransomware
+
+malware: wannacry
+aliases:
+  - wannacrypt
+  - wannacryptor
+  - wcry
+  - wana
+category: ransomware
+
+references:
+  - https://attack.mitre.org/software/S0366/
+
+techniques:
+  - id: T1486
+    name: Data Encrypted for Impact
+    tactic: impact
+
+  - id: T1529
+    name: System Shutdown/Reboot
+    tactic: impact
+
+  - id: T1210
+    name: Exploitation of Remote Services
+    tactic: lateral-movement
+
+  - id: T1218.011
+    name: "System Binary Proxy Execution: Rundll32"
+    tactic: defense-evasion

@@ -1,0 +1,40 @@
+# Emotet — Banking trojan / malware distribution platform (2014-2021)
+#
+# Emotet evolved from a banking trojan into a malware distribution platform
+# used by other threat actors (TrickBot, QakBot, Ryuk). Disrupted in 2021
+# by a coordinated international law enforcement operation.
+#
+# References:
+#   https://attack.mitre.org/software/S0367/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa21-148a
+
+malware: emotet
+aliases:
+  - heodo
+  - geodo
+  - mealybug
+category: trojan
+
+references:
+  - https://attack.mitre.org/software/S0367/
+
+techniques:
+  - id: T1566.001
+    name: "Phishing: Spearphishing Attachment"
+    tactic: initial-access
+
+  - id: T1204.002
+    name: "User Execution: Malicious File"
+    tactic: execution
+
+  - id: T1071.001
+    name: "Application Layer Protocol: Web Protocols"
+    tactic: command-and-control
+
+  - id: T1055
+    name: Process Injection
+    tactic: defense-evasion
+
+  - id: T1027
+    name: Obfuscated Files or Information
+    tactic: defense-evasion

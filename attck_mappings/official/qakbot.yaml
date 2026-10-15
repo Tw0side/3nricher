@@ -1,0 +1,40 @@
+# QakBot (QBot) — Banking trojan / initial access broker (2008-2023)
+#
+# QakBot was a long-running banking trojan that evolved into an initial
+# access broker for ransomware operations (Black Basta, Conti, ProLock).
+# Disrupted in August 2023 by the FBI-led "Operation Duck Hunt".
+#
+# References:
+#   https://attack.mitre.org/software/S0650/
+#   https://www.justice.gov/opa/pr/fbi-led-operation-disrupts-qakbot
+
+malware: qakbot
+aliases:
+  - qbot
+  - pinkslipbot
+  - quakbot
+category: trojan
+
+references:
+  - https://attack.mitre.org/software/S0650/
+
+techniques:
+  - id: T1566.001
+    name: "Phishing: Spearphishing Attachment"
+    tactic: initial-access
+
+  - id: T1204.002
+    name: "User Execution: Malicious File"
+    tactic: execution
+
+  - id: T1071.001
+    name: "Application Layer Protocol: Web Protocols"
+    tactic: command-and-control
+
+  - id: T1055
+    name: Process Injection
+    tactic: defense-evasion
+
+  - id: T1059.005
+    name: "Command and Scripting Interpreter: Visual Basic"
+    tactic: execution
