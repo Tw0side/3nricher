@@ -23,7 +23,7 @@ Design notes:
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx
+from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx, greynoise, threatfox, feodo
 from scoring import calculate_risk
 from rationale import build_rationale
 from attck import map_to_attck
@@ -66,6 +66,9 @@ def enrich_one(ioc: str) -> dict:
         "malwarebazaar": malwarebazaar.query(ioc, ioc_type),
         "urlhaus": urlhaus.query(ioc, ioc_type),
         "otx": otx.query(ioc, ioc_type),
+        "greynoise": greynoise.query(ioc, ioc_type),
+        "threatfox": threatfox.query(ioc, ioc_type),
+        "feodo": feodo.query(ioc, ioc_type),
     }
 
     score, risk = calculate_risk(

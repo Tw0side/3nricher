@@ -43,6 +43,7 @@ class Config:
     ABUSE_API_KEY: str | None = os.getenv("ABUSE_API_KEY")
     ABUSE_CH_API_KEY: str | None = os.getenv("ABUSE_CH_API_KEY")
     OTX_API_KEY: str | None = os.getenv("OTX_API_KEY")
+    GREYNOISE_API_KEY: str | None = os.getenv("GREYNOISE_API_KEY")
 
     # ---- Behavior ----
     VT_SLEEP_SECONDS: int = int(os.getenv("VT_SLEEP_SECONDS", "16"))
@@ -118,6 +119,10 @@ class Config:
             warnings.append(
                 "OTX_API_KEY not set — AlienVault OTX enrichment disabled"
             )
+        if not cls.GREYNOISE_API_KEY:
+            warnings.append(
+                "GREYNOISE_API_KEY not set — GreyNoise enrichment disabled"
+            )
 
         return warnings
 
@@ -141,6 +146,7 @@ class Config:
             "ABUSE_API_KEY": redact(cls.ABUSE_API_KEY),
             "ABUSE_CH_API_KEY": redact(cls.ABUSE_CH_API_KEY),
             "OTX_API_KEY": redact(cls.OTX_API_KEY),
+            "GREYNOISE_API_KEY": redact(cls.GREYNOISE_API_KEY),
             "VT_SLEEP_SECONDS": cls.VT_SLEEP_SECONDS,
             "HTTP_TIMEOUT": cls.HTTP_TIMEOUT,
             "LOG_LEVEL": cls.LOG_LEVEL,

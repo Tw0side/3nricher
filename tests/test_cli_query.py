@@ -63,33 +63,9 @@ class TestSourceDetail:
 
 class TestRunQuery:
     @responses.activate
-    def test_query_clean_ioc_returns_zero(self, load_fixture, capsys):
+    def test_query_clean_ioc_returns_zero(self, mock_all_sources, capsys):
         """Clean IOC → exit 0, output contains IOC and Low."""
-        # Mock responses
-        responses.add(
-            responses.GET,
-            "https://www.virustotal.com/api/v3/ip_addresses/8.8.8.8",
-            json=load_fixture("vt_response.json"),
-            status=200,
-        )
-        responses.add(
-            responses.GET,
-            "https://api.abuseipdb.com/api/v2/check",
-            json=load_fixture("abuse_response.json"),
-            status=200,
-        )
-        responses.add(
-            responses.POST,
-            "https://urlhaus-api.abuse.ch/v1/host/",
-            json={"query_status": "no_results"},
-            status=200,
-        )
-        responses.add(
-            responses.GET,
-            "https://otx.alienvault.com/api/v1/indicators/IPv4/8.8.8.8/general",
-            json={"pulse_info": {"count": 0, "pulses": []}},
-            status=200,
-        )
+        mock_all_sources("8.8.8.8", "ip")
 
         exit_code = run_query("8.8.8.8", show_history=False)
 

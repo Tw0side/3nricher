@@ -7,14 +7,7 @@ Provides a consistent HTTP request wrapper with:
 - Respects the Retry-After header from rate-limited APIs
 - Centralized timeout enforcement
 - Transparent HTTP response caching (via storage.cache)
-
-Usage:
-    from sources.base import safe_request, http_error_reason
-
-    response, error = safe_request("GET", url, headers=headers)
-    if error:
-        return error
-    return response.json()
+- Optional JSON body support for POST requests
 """
 import logging
 import random
@@ -38,6 +31,7 @@ def safe_request(
     headers: dict | None = None,
     params: dict | None = None,
     data: dict | None = None,
+    json_body: dict | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     retries: int = DEFAULT_RETRIES,
     backoff_base: float = DEFAULT_BACKOFF_BASE,
@@ -61,7 +55,8 @@ def safe_request(
         url:           Full URL
         headers:       Optional request headers
         params:        Optional query parameters (GET)
-        data:          Optional form data (POST)
+        data:          Optional form data (POST, form-encoded)
+        json_body:     Optional JSON body (POST, application/json)
         timeout:       Request timeout in seconds
         retries:       Max number of retry attempts after the first failure
         backoff_base:  Base delay for exponential backoff (seconds)
@@ -89,7 +84,12 @@ def safe_request(
                 )
             else:  # POST
                 r = session.post(
-                    url, headers=headers, params=params, data=data, timeout=timeout,
+                    url,
+                    headers=headers,
+                    params=params,
+                    data=data,
+                    json=json_body,
+                    timeout=timeout,
                 )
         except requests.Timeout:
             if is_last_attempt:
@@ -118,8 +118,6 @@ def safe_request(
         last_response = r
 
         # If we got a cached error response, discard and refetch.
-        # Rationale: a 429 or 5xx cached from a bad moment shouldn't
-        # mask a healthy API forever.
         if getattr(r, "from_cache", False) and _is_error_status(r.status_code):
             log.debug(
                 "Discarding cached error response for %s (HTTP %d)",
@@ -130,7 +128,7 @@ def safe_request(
             if is_last_attempt:
                 log.warning("HTTP %d from %s after %d attempt(s)",
                             r.status_code, url, attempt + 1)
-                return r, None  # give up — caller sees the error
+                return r, None
 
             _sleep_backoff(attempt, backoff_base, url,
                            f"cached HTTP {r.status_code}")
@@ -141,7 +139,7 @@ def safe_request(
             if is_last_attempt:
                 log.warning("HTTP %d from %s after %d attempt(s)",
                             r.status_code, url, attempt + 1)
-                return r, None  # return response, caller decides
+                return r, None
 
             retry_after = _parse_retry_after(r)
             if retry_after is not None:
@@ -182,14 +180,11 @@ def _invalidate_cached_url(
         if cache is None:
             return
 
-        # requests-cache 1.3.x: delete by URL
-        # NOTE: exact delete API varies; keep it defensive
         if hasattr(cache, "delete"):
             cache.delete(urls=[url])
         elif hasattr(cache, "remove_expired_responses"):
-            # Fallback: no-op, log for visibility
             log.debug("Cache delete unavailable for %s", url)
-    except Exception as e:  # pragma: no cover — best-effort cleanup
+    except Exception as e:
         log.debug("Failed to invalidate cache for %s: %s", url, e)
 
 

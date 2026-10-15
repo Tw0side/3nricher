@@ -103,7 +103,7 @@ def _print_summary(result: dict) -> None:
     # Sources
     print("Sources:")
     sources = result.get("sources", {})
-    for name in ("virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx"):
+    for name in ("virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx","greynoise", "threatfox", "feodo"):
         s = sources.get(name, {})
         status = s.get("status", "unknown")
         detail = _source_detail(name, s)
