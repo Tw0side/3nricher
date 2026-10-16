@@ -60,11 +60,33 @@ class TestSourceDetail:
         detail = _source_detail("urlhaus", s)
         assert detail == ""
 
+    # ---- Iteration 6 source detail tests ----
+    def test_greynoise_detail(self):
+        """GreyNoise detail shows classification + name."""
+        s = {"status": "ok", "classification": "malicious", "name": "Test Scanner"}
+        detail = _source_detail("greynoise", s)
+        assert "malicious" in detail
+        assert "Test Scanner" in detail
+
+    def test_threatfox_detail(self):
+        """ThreatFox detail shows malware + threat type."""
+        s = {"status": "ok", "malware": "Cobalt Strike", "threat_type": "botnet_cc"}
+        detail = _source_detail("threatfox", s)
+        assert "Cobalt Strike" in detail
+        assert "botnet_cc" in detail
+
+    def test_feodo_detail(self):
+        """Feodo detail shows malware + status."""
+        s = {"status": "ok", "malware": "Emotet", "status_detail": "online"}
+        detail = _source_detail("feodo", s)
+        assert "Emotet" in detail
+        assert "online" in detail
+
 
 class TestRunQuery:
     @responses.activate
     def test_query_clean_ioc_returns_zero(self, mock_all_sources, capsys):
-        """Clean IOC → exit 0, output contains IOC and Low."""
+        """Clean IOC → exit 0, output contains key fields."""
         mock_all_sources("8.8.8.8", "ip")
 
         exit_code = run_query("8.8.8.8", show_history=False)
@@ -73,8 +95,12 @@ class TestRunQuery:
         output = captured.out
 
         assert exit_code == 0
-        assert "IOC:   8.8.8.8" in output
-        assert "Type:  ip" in output
+        # Substring matches — new format uses aligned labels
+        assert "8.8.8.8" in output
+        assert "IOC:" in output
+        assert "Type:" in output
+        assert "Risk:" in output
+        assert "Confidence:" in output
         assert "Sources:" in output
         assert "Rationale:" in output
 

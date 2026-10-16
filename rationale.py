@@ -7,21 +7,26 @@ friendly explanation.
 
 Example output:
     [
-        "VirusTotal: 13 malicious engines → +50 (capped at 50)",
+        "VirusTotal: 30/63 malicious (48%) → +30",
         "AbuseIPDB: 100% abuse confidence → +25",
-        "OTX: 50 community pulses → +20 (capped at 20)",
         "MalwareBazaar: not applicable",
         "URLhaus: not applicable",
-        "Total: 95 (Critical)",
+        "OTX: 50 community pulses → +20 (capped)",
+        "GreyNoise: not applicable",
+        "ThreatFox: not_found",
+        "Feodo: not applicable",
+        "Total: 75 (Critical)",
     ]
 
 Design:
 - The rationale MUST match the scoring logic exactly. If calculate_risk
   awards 25 points for AbuseIPDB, the rationale says "+25". To keep this
-  guarantee, both modules share the same weights from Config.
+  guarantee, both modules share the same weights from Config, and this
+  module imports _vt_hybrid_score directly from scoring.py.
 - Not-applicable sources are included for completeness (analysts want to
   see that a source was consulted, not silently skipped).
 - Error sources are called out explicitly.
+- If label is "Unknown", the total line explains why.
 """
 import logging
 
@@ -64,8 +69,25 @@ def build_rationale(sources: dict, score: int, label: str) -> list[str]:
     otx = sources.get("otx", {})
     lines.append(_rationale_otx(otx))
 
-    # Final total
-    lines.append(f"Total: {score} ({label})")
+    # ---- GreyNoise ----
+    gn = sources.get("greynoise", {})
+    lines.append(_rationale_greynoise(gn))
+
+    # ---- ThreatFox ----
+    tf = sources.get("threatfox", {})
+    lines.append(_rationale_threatfox(tf))
+
+    # ---- Feodo ----
+    fe = sources.get("feodo", {})
+    lines.append(_rationale_feodo(fe))
+
+    # ---- Final total ----
+    if label == "Unknown":
+        lines.append(
+            f"Total: {score} (Unknown — no source returned data)"
+        )
+    else:
+        lines.append(f"Total: {score} ({label})")
 
     return lines
 
@@ -84,12 +106,26 @@ def _rationale_vt(vt: dict) -> str:
     if status == "ok":
         malicious = vt.get("malicious", 0)
         suspicious = vt.get("suspicious", 0)
-        raw = malicious * Config.SCORE_VT_PER_MALICIOUS + suspicious * Config.SCORE_VT_PER_SUSPICIOUS
-        contrib = min(raw, Config.SCORE_VT_MAX)
-        capped = " (capped)" if raw > Config.SCORE_VT_MAX else ""
+        harmless = vt.get("harmless", 0)
+        undetected = vt.get("undetected", 0)
+
+        total = malicious + suspicious + harmless + undetected
+
+        # If no engine has actually produced a verdict, VT has no data
+        if (malicious + suspicious + harmless) == 0:
+            return "VirusTotal: no engine verdicts (not yet analyzed)"
+
+        # Use the SAME hybrid scoring function as scoring.py
+        from scoring import _vt_hybrid_score
+        contrib = _vt_hybrid_score(vt)
+
+        weighted = malicious + (suspicious * 0.5)
+        ratio = weighted / total
+        ratio_pct = int(ratio * 100)
+
         return (
-            f"VirusTotal: {malicious} malicious + {suspicious} suspicious "
-            f"→ +{contrib}{capped}"
+            f"VirusTotal: {malicious}/{total} malicious "
+            f"({ratio_pct}%) → +{contrib}"
         )
     return "VirusTotal: unknown status"
 
@@ -152,9 +188,72 @@ def _rationale_otx(otx: dict) -> str:
         return f"OTX: error ({otx.get('reason', 'unknown')})"
     if status == "ok":
         pulse_count = otx.get("pulse_count", 0)
-        # OTX scoring is capped at 20 points (2 per pulse, per scoring.py)
         raw = pulse_count * 2
         contrib = min(raw, 20)
         capped = " (capped)" if raw > 20 else ""
         return f"OTX: {pulse_count} community pulses → +{contrib}{capped}"
     return "OTX: unknown status"
+
+
+def _rationale_greynoise(gn: dict) -> str:
+    status = gn.get("status")
+    if status == "not_applicable":
+        return "GreyNoise: not applicable"
+    if status == "not_found":
+        return "GreyNoise: not found"
+    if status == "error":
+        return f"GreyNoise: error ({gn.get('reason', 'unknown')})"
+    if status == "ok":
+        classification = gn.get("classification", "")
+        scanner_name = gn.get("name", "")
+
+        if classification == "malicious":
+            contrib = 15
+        elif classification == "unknown":
+            contrib = 5
+        else:
+            contrib = 0
+
+        label = classification or "unknown"
+        # Only append scanner name if it's actually useful
+        if scanner_name and scanner_name.lower() not in ("unknown", ""):
+            label = f"{label} ({scanner_name})"
+
+        return f"GreyNoise: {label} → +{contrib}"
+    return "GreyNoise: unknown status"
+
+
+def _rationale_threatfox(tf: dict) -> str:
+    status = tf.get("status")
+    if status == "not_applicable":
+        return "ThreatFox: not applicable"
+    if status == "not_found":
+        return "ThreatFox: not found"
+    if status == "error":
+        return f"ThreatFox: error ({tf.get('reason', 'unknown')})"
+    if status == "ok":
+        malware = tf.get("malware", "unknown")
+        threat_type = tf.get("threat_type", "")
+        detail = malware
+        if threat_type:
+            detail = f"{malware} ({threat_type})"
+        return f"ThreatFox: {detail} → +30"
+    return "ThreatFox: unknown status"
+
+
+def _rationale_feodo(fe: dict) -> str:
+    status = fe.get("status")
+    if status == "not_applicable":
+        return "Feodo: not applicable"
+    if status == "not_found":
+        return "Feodo: not found"
+    if status == "error":
+        return f"Feodo: error ({fe.get('reason', 'unknown')})"
+    if status == "ok":
+        malware = fe.get("malware", "unknown")
+        status_detail = fe.get("status_detail", "")
+        detail = malware
+        if status_detail:
+            detail = f"{malware} ({status_detail})"
+        return f"Feodo: {detail} → +25"
+    return "Feodo: unknown status"

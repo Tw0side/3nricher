@@ -12,7 +12,7 @@ Unlike the batch `enrich` mode, this:
 Exit codes:
     0 = Low or Medium risk
     1 = High or Critical risk
-    2 = Error during enrichment
+    2 = Unknown or error
 """
 import logging
 import sys
@@ -72,21 +72,22 @@ def _print_summary(result: dict) -> None:
     """Print the enrichment summary."""
     risk = result.get("risk", "Unknown")
     score = result.get("risk_score", 0)
+    confidence = result.get("confidence", "Unknown")
 
-    print(f"IOC:   {result.get('ioc', '')}")
-    print(f"Type:  {result.get('type', '')}")
-    print(f"Risk:  {risk} ({score})")
+    print(f"IOC:         {result.get('ioc', '')}")
+    print(f"Type:        {result.get('type', '')}")
+    print(f"Risk:        {risk} ({score})")
+    print(f"Confidence:  {confidence}")
 
     # Compact ATT&CK summary if any techniques were found
     attack = result.get("attack", [])
     if attack:
         ids = ", ".join(t.get("id", "") for t in attack)
-        print(f"ATT&CK: {ids}")
+        print(f"ATT&CK:      {ids}")
 
     print()
 
     # ATT&CK techniques
-    attack = result.get("attack", [])
     if attack:
         print("MITRE ATT&CK:")
         for tech in attack:
@@ -103,7 +104,10 @@ def _print_summary(result: dict) -> None:
     # Sources
     print("Sources:")
     sources = result.get("sources", {})
-    for name in ("virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx","greynoise", "threatfox", "feodo"):
+    for name in (
+        "virustotal", "abuseipdb", "malwarebazaar", "urlhaus", "otx",
+        "greynoise", "threatfox", "feodo",
+    ):
         s = sources.get(name, {})
         status = s.get("status", "unknown")
         detail = _source_detail(name, s)
@@ -148,6 +152,29 @@ def _source_detail(name: str, s: dict) -> str:
         return f"{s.get('url_count', 0)} malicious URLs"
     if name == "otx":
         return f"{s.get('pulse_count', 0)} pulses"
+
+    # ---- Iteration 6 sources ----
+    if name == "greynoise":
+        classification = s.get("classification", "unknown")
+        scanner_name = s.get("name", "")
+        if scanner_name:
+            return f"{classification} ({scanner_name})"
+        return classification
+
+    if name == "threatfox":
+        malware = s.get("malware", "")
+        threat_type = s.get("threat_type", "")
+        if malware and threat_type:
+            return f"{malware} ({threat_type})"
+        return malware or threat_type
+
+    if name == "feodo":
+        malware = s.get("malware", "")
+        status_detail = s.get("status_detail", "")
+        if malware and status_detail:
+            return f"{malware} ({status_detail})"
+        return malware
+
     return ""
 
 
