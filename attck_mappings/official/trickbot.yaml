@@ -1,0 +1,44 @@
+# TrickBot — Banking trojan / loader (2016-present)
+#
+# TrickBot evolved from a banking trojan into a modular malware platform
+# used as a loader for other threats (Ryuk, Conti, Diavol ransomware).
+# Widely distributed via Emotet and phishing campaigns.
+#
+# References:
+#   https://attack.mitre.org/software/S0266/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa21-076a
+
+malware: trickbot
+aliases:
+  - trick bot
+  - trickbot banking trojan
+  - trick loader
+category: trojan
+
+references:
+  - https://attack.mitre.org/software/S0266/
+
+techniques:
+  - id: T1566.001
+    name: "Phishing: Spearphishing Attachment"
+    tactic: initial-access
+
+  - id: T1204.002
+    name: "User Execution: Malicious File"
+    tactic: execution
+
+  - id: T1055
+    name: Process Injection
+    tactic: defense-evasion
+
+  - id: T1071.001
+    name: "Application Layer Protocol: Web Protocols"
+    tactic: command-and-control
+
+  - id: T1027
+    name: Obfuscated Files or Information
+    tactic: defense-evasion
+
+  - id: T1078
+    name: Valid Accounts
+    tactic: defense-evasion

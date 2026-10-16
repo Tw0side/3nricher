@@ -1,0 +1,44 @@
+# RedLine Stealer — Infostealer (2020-present)
+#
+# RedLine is one of the most prevalent infostealers, sold as malware-as-a-
+# service. Harvests browser credentials, crypto wallets, VPN credentials,
+# and gaming accounts. Frequently distributed via YouTube ads and phishing.
+#
+# References:
+#   https://attack.mitre.org/software/S1244/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-320a
+
+malware: redline
+aliases:
+  - redline stealer
+  - red line stealer
+  - redlinestealer
+category: infostealer
+
+references:
+  - https://attack.mitre.org/software/S1244/
+
+techniques:
+  - id: T1555.003
+    name: "Credentials from Password Stores: Credentials from Web Browsers"
+    tactic: credential-access
+
+  - id: T1555
+    name: Credentials from Password Stores
+    tactic: credential-access
+
+  - id: T1539
+    name: Steal Web Session Cookie
+    tactic: credential-access
+
+  - id: T1005
+    name: Data from Local System
+    tactic: collection
+
+  - id: T1041
+    name: Exfiltration Over C2 Channel
+    tactic: exfiltration
+
+  - id: T1071.001
+    name: "Application Layer Protocol: Web Protocols"
+    tactic: command-and-control

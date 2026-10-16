@@ -1,0 +1,44 @@
+# AgentTesla — Infostealer / keylogger (2014-present)
+#
+# AgentTesla is a commercial infostealer sold on underground forums. Widely
+# distributed via phishing emails with malicious attachments. Steals
+# credentials, keystrokes, screenshots, and clipboard contents.
+#
+# References:
+#   https://attack.mitre.org/software/S0331/
+#   https://www.accenture.com/us-en/blogs/cyber-defense/agent-tesla-malware
+
+malware: agent tesla
+aliases:
+  - agenttesla
+  - agent_tesla
+  - agent tesla keylogger
+category: infostealer
+
+references:
+  - https://attack.mitre.org/software/S0331/
+
+techniques:
+  - id: T1566.001
+    name: "Phishing: Spearphishing Attachment"
+    tactic: initial-access
+
+  - id: T1204.002
+    name: "User Execution: Malicious File"
+    tactic: execution
+
+  - id: T1056.001
+    name: "Input Capture: Keylogging"
+    tactic: collection
+
+  - id: T1113
+    name: Screen Capture
+    tactic: collection
+
+  - id: T1115
+    name: Clipboard Data
+    tactic: collection
+
+  - id: T1041
+    name: Exfiltration Over C2 Channel
+    tactic: exfiltration

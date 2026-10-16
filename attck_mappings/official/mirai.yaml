@@ -1,0 +1,39 @@
+# Mirai — IoT botnet (2016-present)
+#
+# Mirai is a self-propagating IoT botnet that scans for vulnerable devices
+# with default credentials, infects them, and uses them for DDoS attacks.
+# Source code was publicly released in 2016, spawning many variants.
+#
+# References:
+#   https://attack.mitre.org/software/S0484/
+#   https://www.cisa.gov/news-events/alerts/2016/10/14/mirai-botnet
+
+malware: mirai
+aliases:
+  - mirai botnet
+  - mirai iot
+category: botnet
+
+references:
+  - https://attack.mitre.org/software/S0484/
+
+techniques:
+  - id: T1595.001
+    name: "Active Scanning: Scanning IP Blocks"
+    tactic: reconnaissance
+
+  - id: T1110.001
+    name: "Brute Force: Password Guessing"
+    tactic: credential-access
+
+  - id: T1078.001
+    name: "Valid Accounts: Default Accounts"
+    tactic: defense-evasion
+
+  - id: T1498.001
+    name: "Network Denial of Service: Direct Network Flood"
+    tactic: impact
+
+  - id: T1059.004
+    name: "Command and Scripting Interpreter: Unix Shell"
+    tactic: execution

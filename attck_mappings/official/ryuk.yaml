@@ -1,0 +1,43 @@
+# Ryuk — Ransomware (2018-present)
+#
+# Ryuk is a targeted ransomware deployed by human operators after gaining
+# initial access via TrickBot, Emotet, or BazarLoader. Known for large
+# ransom demands against hospitals, municipalities, and enterprises.
+#
+# References:
+#   https://attack.mitre.org/software/S0446/
+#   https://www.cisa.gov/news-events/cybersecurity-advisories/aa20-302a
+
+malware: ryuk
+aliases:
+  - ryuk ransomware
+  - hermes
+category: ransomware
+
+references:
+  - https://attack.mitre.org/software/S0446/
+
+techniques:
+  - id: T1486
+    name: Data Encrypted for Impact
+    tactic: impact
+
+  - id: T1490
+    name: Inhibit System Recovery
+    tactic: impact
+
+  - id: T1489
+    name: Service Stop
+    tactic: impact
+
+  - id: T1059.001
+    name: "Command and Scripting Interpreter: PowerShell"
+    tactic: execution
+
+  - id: T1021.001
+    name: "Remote Services: Remote Desktop Protocol"
+    tactic: lateral-movement
+
+  - id: T1562.001
+    name: "Impair Defenses: Disable or Modify Tools"
+    tactic: defense-evasion
