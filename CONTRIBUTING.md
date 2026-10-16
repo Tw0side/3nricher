@@ -224,23 +224,5 @@ Code of Conduct
 Be respectful. Technical disagreements are fine; personal attacks are not.
 See CODE_OF_CONDUCT.md.
 
-text
 
-**Save:** `Ctrl+O`, `Enter`, `Ctrl+X`
-
----
-
-## 🚦 Reply When Done
-
-Once `CONTRIBUTING.md` is saved, reply **"next"** and I'll give you:
-
-- **File 2:** `CODE_OF_CONDUCT.md`
-- **File 3:** `docs/adding-a-source.md` (the big one — your student will need this most)
-- **File 4:** `docs/architecture.md`
-- **File 5–7:** Issue and PR templates
-- **File 8:** The "good first issue" body you'll paste into GitHub
-
-**One file at a time — same rhythm as the code iterations.**
-
-**Paste `cat CONTRIBUTING.md | head -20` to confirm, then reply "next".**
 
