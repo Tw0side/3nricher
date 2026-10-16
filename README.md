@@ -5,26 +5,31 @@
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![last commit](https://img.shields.io/github/last-commit/Tw0side/3nricher)](https://github.com/Tw0side/3nricher/commits/main)
 
-**Multi-source IOC enrichment pipeline for threat intelligence workflows.**
+**Multi-source IOC enrichment pipeline with MITRE ATT&CK mapping.**
 
-3nricher accepts Indicators of Compromise (IPs, domains, file hashes), enriches them against five threat intelligence sources in parallel, applies weighted risk scoring with a per-source rationale, and writes structured JSON and CSV reports. It is built for SOC triage, threat hunting, and detection engineering.
+3nricher takes Indicators of Compromise (IPs, domains, file hashes), enriches them
+against eight threat intelligence sources in parallel, applies weighted risk scoring
+with a per-source rationale, and maps detected malware families to MITRE ATT&CK
+techniques. It writes structured JSON and CSV reports for SOC triage, threat
+hunting, and detection engineering.
 
-The tool automates the repetitive enrichment step of IOC triage, reducing per-IOC analysis time from minutes to seconds.
+It automates the repetitive IOC lookup step in SOC workflows and cuts analyst time
+per IOC from minutes to seconds.
 
-## Contents
+## Table of Contents
 
-- [Overview](#overview)
 - [Features](#features)
-- [Installation](#installation)
+- [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Usage](#usage)
-- [Data Sources](#data-sources)
+- [Sources](#sources)
+- [MITRE ATT&CK Mapping](#mitre-attck-mapping)
 - [Risk Scoring](#risk-scoring)
+- [Output Formats](#output-formats)
 - [Enrichment History](#enrichment-history)
 - [Docker](#docker)
 - [Architecture](#architecture)
 - [Testing](#testing)
-- [Performance](#performance)
 - [Known Limitations](#known-limitations)
 - [Roadmap](#roadmap)
 - [Version History](#version-history)
@@ -32,79 +37,64 @@ The tool automates the repetitive enrichment step of IOC triage, reducing per-IO
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 
-## Overview
-
-Analysts typically spend 5 to 15 minutes per IOC checking VirusTotal, AbuseIPDB, MalwareBazaar, OTX, and similar services by hand. A phishing report with 20 IOCs can take an hour.
-
-3nricher replaces that workflow:
-
-1. Ingests IOCs from a file or the command line.
-2. Enriches each IOC against five sources in parallel.
-3. Scores risk using weighted, source-aware logic.
-4. Explains every score with a per-source rationale.
-5. Exports JSON and CSV for ticketing, TIP ingestion, or further analysis.
-
 ## Features
 
-- **Five-source enrichment:** VirusTotal, AbuseIPDB, MalwareBazaar, URLhaus, AlienVault OTX.
-- **Parallel processing:** `ThreadPoolExecutor` with a configurable worker count.
-- **HTTP caching:** SQLite-backed cache with a 24-hour TTL (about 17x faster on repeat runs).
-- **Persistent history:** every enrichment is stored in SQLite with IOC deduplication.
-- **Score rationale:** each score includes an explanation of how it was reached.
-- **Recency weighting:** older signals carry less weight (five-tier multiplier).
-- **Source-aware floors:** confirmed malware is always rated High or above; allowlisted infrastructure is forced to Low.
-- **Rate limiting:** thread-safe token bucket that respects per-API quotas.
-- **Retry with backoff:** exponential backoff for HTTP 429, 5xx, and timeouts.
-- **CLI query mode:** single-IOC lookup with formatted output and scriptable exit codes.
-- **Test suite:** 97 automated tests with mocked HTTP; CI on Python 3.11 and 3.12.
-- **Docker support:** multi-stage build, non-root user, Makefile wrappers.
+- **Parallel enrichment** across 8 threat intelligence sources
+- **Weighted risk scoring** with a per-source, human-readable rationale
+- **Unknown verdict** that separates "no data" from "clean"
+- **Confidence indicator** showing how many applicable sources returned data
+- **MITRE ATT&CK mapping** from malware family to technique, with provenance
+- **Allowlist and score floors** to cut false positives and false negatives
+- **Recency weighting** for time-sensitive signals
+- **JSON and CSV export** for ticketing, TIP ingestion, or analysis
+- **Local SQLite history** and response caching
+- **Script-friendly exit codes** for pipelines and automation
 
-## Installation
-
-Requires Python 3.10 or later.
+## Quick Start
 
 ```bash
 # Install from GitHub
 pip install git+https://github.com/Tw0side/3nricher.git
-```
 
-Or install from a local clone:
-
-```bash
+# Or clone and install locally
 git clone https://github.com/Tw0side/3nricher.git
 cd 3nricher
 python -m venv venv && source venv/bin/activate
 pip install -e .
+
+# Add your API keys
+cp .env.example .env
+# edit .env
+
+# Run
+3nricher query 8.8.8.8
 ```
 
 ## Configuration
 
-3nricher requires your own API keys. Provider terms of service prohibit key sharing, and free-tier limits apply per key, so keys are not bundled with the tool.
+3nricher needs **your own** API keys. Threat intelligence provider terms prohibit
+key sharing, and free-tier limits apply per key, so keys are not bundled.
 
 | Source | Sign up | Free tier | Required |
 |--------|---------|-----------|----------|
 | VirusTotal | https://www.virustotal.com/gui/my-apikey | 4 req/min, 500/day | Yes |
 | AbuseIPDB | https://www.abuseipdb.com/account/api | 1,000/day | No |
-| abuse.ch (MalwareBazaar, URLhaus) | https://auth.abuse.ch/ | Reasonable use | No |
+| abuse.ch (MalwareBazaar, URLhaus, ThreatFox, Feodo) | https://auth.abuse.ch/ | Reasonable use | No |
 | AlienVault OTX | https://otx.alienvault.com/ | 10,000/day | No |
+| GreyNoise | https://viz.greynoise.io/account/ | 50/week | No |
 
-Copy the template and add your keys:
-
-```bash
-cp .env.example .env
-```
-
-Contents of `.env`:
+Create a `.env` file in the directory you run 3nricher from:
 
 ```ini
 VT_API_KEY=your_virustotal_key_here
 ABUSE_API_KEY=your_abuseipdb_key_here
 ABUSE_CH_API_KEY=your_abuse_ch_key_here
 OTX_API_KEY=your_otx_key_here
+GREYNOISE_API_KEY=your_greynoise_key_here
 LOG_LEVEL=INFO
 ```
 
-Create the `.env` file in the directory you run 3nricher from. Sources without a key are skipped.
+Sources without a key are skipped. Only VirusTotal is required.
 
 ## Usage
 
@@ -119,30 +109,42 @@ Create the `.env` file in the directory you run 3nricher from. Sources without a
 Example output:
 
 ```text
-Enriching 8.8.8.8 ...
+IOC:         84c82835a5d21bbcf75a61706d8ab549
+Type:        md5
+Risk:        Critical (100)
+Confidence:  Medium
+ATT&CK:      T1210, T1218.011, T1486, T1529
 
-IOC:   8.8.8.8
-Type:  ip
-Risk:  Low (0)
+MITRE ATT&CK:
+  T1210        Exploitation of Remote Services [lateral-movement]
+               Source: malwarebazaar:WannaCry
+  T1218.011    System Binary Proxy Execution: Rundll32 [defense-evasion]
+               Source: malwarebazaar:WannaCry
+  T1486        Data Encrypted for Impact [impact]
+               Source: malwarebazaar:WannaCry
+  T1529        System Shutdown/Reboot [impact]
+               Source: malwarebazaar:WannaCry
 
 Sources:
-  virustotal     ok            0 malicious / 53 harmless
-  abuseipdb      ok            0% abuse, US, Google LLC
-  malwarebazaar  not_applicable (MalwareBazaar only supports file hashes)
-  urlhaus        not_found
-  otx            ok            0 pulses
+  virustotal     ok            66 malicious / 0 harmless
+  abuseipdb      not_applicable (AbuseIPDB only supports IPs)
+  malwarebazaar  ok            signature: WannaCry
+  urlhaus        not_applicable (URLhaus supports domains and IPs only)
+  otx            ok            50 pulses
+  greynoise      not_applicable (GreyNoise only supports IPs)
+  threatfox      not_found
+  feodo          not_applicable (Feodo Tracker only supports IPs)
 
 Rationale:
-  VirusTotal: 0 malicious + 0 suspicious -> +0
-  AbuseIPDB: 0% abuse confidence -> +0
-  MalwareBazaar: not applicable
-  URLhaus: not found
-  OTX: 0 community pulses -> +0
-  Total: 0 (Low)
-
-History: 2 prior enrichment(s)
-  [2026-10-14 11:38:09] Low (0) - run d277562a
-  [2026-10-14 11:36:12] Low (0) - run a0f1b176
+  VirusTotal: 66/71 malicious (92%) -> +47
+  AbuseIPDB: not applicable
+  MalwareBazaar: confirmed malware (WannaCry) -> +40
+  URLhaus: not applicable
+  OTX: 50 community pulses -> +20 (capped)
+  GreyNoise: not applicable
+  ThreatFox: not found
+  Feodo: not applicable
+  Total: 100 (Critical)
 ```
 
 ### Enrich a file of IOCs
@@ -151,28 +153,28 @@ History: 2 prior enrichment(s)
 3nricher enrich -f iocs.txt -o report
 ```
 
-This writes `report.json` and `report.csv`.
+Writes `report.json` and `report.csv`.
 
 ### Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-f, --file` | none | File of IOCs, one per line (`#` for comments) |
-| `-o, --output` | `report` | Output basename; writes `<name>.json` and `<name>.csv` |
-| `--workers` | `10` | Number of parallel worker threads |
-| `--no-parallel` | off | Force sequential mode (for debugging) |
-| `--no-persist` | off | Do not write to the history database |
-| `--log-level` | `INFO` | Override the configured log level |
+| `-f, --file` | | File of IOCs, one per line (`#` for comments) |
+| `-o, --output` | `report` | Output basename, writes `<name>.json` and `<name>.csv` |
+| `--workers` | `10` | Parallel worker threads |
+| `--no-parallel` | | Force sequential mode (debugging) |
+| `--no-persist` | | Skip writing to the history database |
+| `--log-level` | `INFO` | Override the log level |
 
 ### Exit codes (query mode)
-
-The `query` subcommand returns an exit code based on risk level, for use in shell scripts and automation.
 
 | Risk | Exit code |
 |------|-----------|
 | Low, Medium | 0 |
 | High, Critical | 1 |
-| Error | 2 |
+| Unknown, Error | 2 |
+
+Shell example:
 
 ```bash
 if ! 3nricher query "$IOC" > /dev/null 2>&1; then
@@ -180,109 +182,238 @@ if ! 3nricher query "$IOC" > /dev/null 2>&1; then
 fi
 ```
 
-Note: exit code 2 (error) also evaluates as failure in the example above. Check `$?` explicitly if you need to tell errors apart from High/Critical results.
-
-## Data Sources
+## Sources
 
 | Source | IOC types | Auth | Purpose |
 |--------|-----------|------|---------|
-| VirusTotal | IP, domain, hash | `x-apikey` header | AV verdicts across roughly 70 engines |
-| AbuseIPDB | IP | `Key` header | Abuse confidence, ISP, geolocation |
-| MalwareBazaar | Hash | `Auth-Key` header | Malware family, tags, first seen |
-| URLhaus | Domain, IP | `Auth-Key` header | Malicious URL hosting |
-| AlienVault OTX | IP, domain, hash | `X-OTX-API-KEY` header | Community threat pulses |
+| [VirusTotal](https://www.virustotal.com/) | IP, domain, hash | `x-apikey` header | AV verdicts across ~70 engines |
+| [AbuseIPDB](https://www.abuseipdb.com/) | IP | `Key` header | Abuse confidence, ISP, geolocation |
+| [MalwareBazaar](https://bazaar.abuse.ch/) | Hash | `Auth-Key` header | Malware family, tags, first seen |
+| [URLhaus](https://urlhaus.abuse.ch/) | Domain, IP | `Auth-Key` header | Malicious URL hosting |
+| [AlienVault OTX](https://otx.alienvault.com/) | IP, domain, hash | `X-OTX-API-KEY` header | Community threat pulses |
+| [GreyNoise](https://www.greynoise.io/) | IP | `key` header | Mass scanner vs. targeted activity |
+| [ThreatFox](https://threatfox.abuse.ch/) | IP, domain, hash | `Auth-Key` header | Malware C2 tracking |
+| [Feodo Tracker](https://feodotracker.abuse.ch/) | IP | `Auth-Key` header | Botnet C2 blocklist |
 
 ### Applicability matrix
 
-Each source declares which IOC types it supports. Unsupported combinations return a `not_applicable` status instead of sending an invalid query.
+Each source declares which IOC types it supports. Unsupported pairs return
+`not_applicable` and are excluded from scoring and confidence.
 
-| IOC type | VirusTotal | AbuseIPDB | MalwareBazaar | URLhaus | OTX |
-|----------|:----------:|:---------:|:-------------:|:-------:|:---:|
-| IP | Yes | Yes | No | Yes | Yes |
-| Domain | Yes | No | No | Yes | Yes |
-| Hash | Yes | No | Yes | No | Yes |
+| IOC type | VT | AbuseIPDB | MB | URLhaus | OTX | GreyNoise | ThreatFox | Feodo |
+|----------|:--:|:---------:|:--:|:-------:|:---:|:---------:|:---------:|:-----:|
+| IP | Yes | Yes | No | Yes | Yes | Yes | Yes | Yes |
+| Domain | Yes | No | No | Yes | Yes | No | Yes | No |
+| Hash | Yes | No | Yes | No | Yes | No | Yes | No |
+
+## MITRE ATT&CK Mapping
+
+3nricher maps malware family names and threat intelligence tags to ATT&CK
+techniques, turning a raw IOC into detection-ready intelligence.
+
+### How it works
+
+1. **Extract candidates** from MalwareBazaar signatures, ThreatFox, and OTX tags.
+2. **Look up mappings** in a curated YAML mapping table.
+3. **Deduplicate** into a unique technique set with provenance.
+4. **Report** via an `attack` field in JSON, `attack_ids` in CSV, and an ATT&CK
+   section in `query` output.
+
+### Mapping table
+
+```text
+attck_mappings/
+├── README.md           Schema documentation
+├── official/           Maintained by the project
+│   ├── wannacry.yaml
+│   ├── lockbit.yaml
+│   ├── emotet.yaml
+│   ├── qakbot.yaml
+│   └── cobalt_strike.yaml
+└── community/          Community contributions
+    └── _template.yaml
+```
+
+Each file maps one malware family to techniques:
+
+```yaml
+malware: wannacry
+aliases:
+  - wannacrypt
+  - wcry
+category: ransomware
+references:
+  - https://attack.mitre.org/software/S0366/
+techniques:
+  - id: T1486
+    name: Data Encrypted for Impact
+    tactic: impact
+  - id: T1529
+    name: System Shutdown/Reboot
+    tactic: impact
+```
+
+To add a mapping, see [`attck_mappings/README.md`](attck_mappings/README.md) and
+place your YAML file in `attck_mappings/community/`.
 
 ## Risk Scoring
 
-The score ranges from 0 to 100 and combines signals from all sources.
+Each IOC gets a weighted score from 0 to 100.
 
 | Source | Max points | Formula |
-|--------|-----------:|---------|
-| VirusTotal | 50 | `min(malicious * 5 + suspicious * 2, 50)` |
-| MalwareBazaar | 40 | Flat 40 for a confirmed sample |
+|--------|:----------:|---------|
+| VirusTotal | 50 | Hybrid: ratio (0-30) + count (0-20) |
+| MalwareBazaar | 40 | Flat 40 if confirmed sample (floors at High) |
+| ThreatFox | 30 | Flat 30 if C2 tracked (floors at High) |
 | AbuseIPDB | 25 | `min(abuse_score * 0.25, 25) * recency` |
 | URLhaus | 25 | `min(url_count * 5, 25) * recency` |
+| Feodo | 25 | Flat 25 if in blocklist (floors at High) |
 | OTX | 20 | `min(pulse_count * 2, 20)` |
+| GreyNoise | 15 | Flat 15 if classification is `malicious` |
 
-**Thresholds**
+### Thresholds
 
-| Score | Label |
-|-------|-------|
-| 0-19 | Low |
-| 20-44 | Medium |
-| 45-69 | High |
-| 70-100 | Critical |
+| Score | Label | Suggested action |
+|-------|-------|------------------|
+| 70-100 | Critical | Block and investigate |
+| 45-69 | High | Investigate |
+| 20-44 | Medium | Monitor |
+| 0-19 | Low | Log |
+
+### Unknown verdict
+
+When no source returns meaningful data, the verdict is **Unknown**, not Low.
+
+- **Low**: sources say the IOC looks clean.
+- **Unknown**: there is no data to judge.
+
+A source counts as meaningful when:
+
+| Source | Meaningful when |
+|--------|-----------------|
+| VirusTotal | At least one engine produced a verdict (malicious, suspicious, or harmless) |
+| OTX | `pulse_count > 0` |
+| All others | `status == "ok"` |
+
+| IOC | Verdict | Reason |
+|-----|---------|--------|
+| `8.8.8.8` | Low | VirusTotal analyzed it, 53 engines say harmless |
+| `kjfuwyce.kr` | Unknown | VirusTotal indexed it but has no verdicts |
+| `103.97.131.179` | High | ThreatFox flagged it as PureRAT C2 |
+
+> **Unknown does not mean safe.** It means the tool has no data. Investigate
+> manually or behaviorally.
+
+### VirusTotal hybrid scoring
+
+VirusTotal combines two components:
+
+- **Ratio (0-30 pts):** proportional to malicious engines over total engines.
+- **Count (0-20 pts):** rewards the absolute number of malicious detections.
+
+This avoids both false-positive escalation (1/92 no longer scores like 50/92) and
+false-negative dismissal (13/92 on a truly malicious domain no longer scores like
+1/92).
+
+| Detections | Score |
+|-----------|:-----:|
+| 1/92 | +2 |
+| 10/92 | +13 |
+| 13/92 | +17 |
+| 30/92 | +29 |
+| 50/92 | +36 |
+| 62/92 | +40 |
+
+### Confidence indicator
+
+Confidence reports how many applicable sources returned meaningful data.
+
+| Confidence | Rule |
+|-----------|------|
+| High | 80% or more of applicable sources returned data |
+| Medium | 50% or more |
+| Low | Under 50%, but at least one |
+| None | No applicable source returned data |
+
+Read it with the verdict: *Critical (Low confidence)* means investigate before
+escalating. *Critical (High confidence)* means act.
 
 ### Score floors
 
-- A MalwareBazaar hit floors the label at High.
-- An AbuseIPDB abuse score of 100 floors the label at High.
+These signals set a minimum label of **High**:
+
+- MalwareBazaar hit
+- AbuseIPDB `abuse_score` of 100
+- ThreatFox C2 hit
+- Feodo C2 hit
 
 ### Allowlist
 
-Well-known clean infrastructure is forced to Low regardless of other signals.
+Well-known clean infrastructure is forced to **Low** regardless of other signals.
 
-- **IPs:** Google DNS (8.8.8.8, 8.8.4.4), Cloudflare (1.1.1.1, 1.0.0.1), Quad9 (9.9.9.9), OpenDNS.
-- **Domains:** google.com, microsoft.com, cloudflare.com, amazon.com, apple.com, github.com, and their subdomains.
+- **IPs:** Google DNS (8.8.8.8, 8.8.4.4), Cloudflare (1.1.1.1, 1.0.0.1), Quad9
+  (9.9.9.9), OpenDNS
+- **Domains:** google.com, microsoft.com, cloudflare.com, amazon.com, apple.com,
+  github.com (including subdomains)
 
 ### Recency weighting
 
 Time-sensitive signals (AbuseIPDB, URLhaus) are scaled by age.
 
 | Age | Multiplier |
-|-----|-----------:|
+|-----|:----------:|
 | Under 7 days | 1.0 |
 | Under 30 days | 0.9 |
 | Under 90 days | 0.75 |
 | Under 1 year | 0.5 |
 | Older | 0.3 |
 
-## Enrichment History
+## Output Formats
 
-Every run is stored in a local SQLite database (default: `data/3nricher.db`). This supports:
+### JSON (excerpt)
 
-- **Verdict tracking:** detect changes such as "VirusTotal verdict moved from clean to malicious since last week".
-- **IOC lifespan:** see how often an indicator has been flagged over time.
-- **Audit trail:** full history for every IOC.
-- **Dashboards:** the data model is the base for the planned visualization work.
-
-Query the database directly:
-
-```bash
-sqlite3 data/3nricher.db "
-  SELECT i.value, i.type, e.risk_label, e.risk_score, e.enriched_at
-  FROM enrichments e
-  JOIN iocs i ON i.id = e.ioc_id
-  ORDER BY e.enriched_at DESC
-  LIMIT 10
-"
+```json
+{
+  "ioc": "84c82835a5d21bbcf75a61706d8ab549",
+  "type": "md5",
+  "risk": "Critical",
+  "risk_score": 100,
+  "confidence": "Medium",
+  "attack": [
+    {"id": "T1486", "name": "Data Encrypted for Impact", "tactic": "impact",
+     "source": "malwarebazaar:WannaCry"},
+    {"id": "T1529", "name": "System Shutdown/Reboot", "tactic": "impact",
+     "source": "malwarebazaar:WannaCry"}
+  ],
+  "sources": { "...": "..." }
+}
 ```
 
-Or from Python:
+### CSV (core columns)
+
+```text
+ioc,type,risk,risk_score,confidence,attack_ids,rationale,...
+84c82835a5d21bbcf75a61706d8ab549,md5,Critical,100,Medium,T1210;T1218.011;T1486;T1529,...
+```
+
+## Enrichment History
+
+Every run is saved to a local SQLite database (default: `data/3nricher.db`).
 
 ```python
 from storage.history import get_ioc_history, get_recent_runs, get_stats
 
-history = get_ioc_history("185.220.101.1")   # all enrichments for one IOC, newest first
-runs = get_recent_runs(limit=10)             # most recent batch runs
+history = get_ioc_history("185.220.101.1")   # all enrichments for one IOC
+runs = get_recent_runs(limit=10)             # most recent runs
 stats = get_stats()                          # summary counts
 ```
 
-Use `--no-persist` to skip writing history.
+Use `--no-persist` to skip saving.
 
 ## Docker
 
-The Makefile is the simplest way to run 3nricher in a container. Each user builds the image locally. The container's non-root user is created with the builder's UID and GID, which avoids bind-mount permission errors.
+Use the included Makefile. **Build the image locally.** The container user is
+created with your UID and GID, which avoids bind-mount permission problems.
 
 ```bash
 make build                         # build the image
@@ -292,83 +423,28 @@ make enrich FILE=threats.txt       # enrich from a specific file
 make test                          # run the test suite
 ```
 
-### Why build locally
-
-The Dockerfile accepts `UID` and `GID` build arguments:
-
-```dockerfile
-ARG UID=1000
-ARG GID=1000
-RUN groupadd -g "${GID}" appuser && useradd -m -u "${UID}" -g "${GID}" appuser
-```
-
-Building with `--build-arg UID=$(id -u)` gives `appuser` your UID, so bind-mounted directories stay writable. Do not use pre-built registry images, because they embed the publisher's UID.
-
-### Manual commands
-
-```bash
-# Build with matching UID/GID
-docker build \
-  --build-arg UID=$(id -u) \
-  --build-arg GID=$(id -g) \
-  -t 3nricher:latest .
-
-# Query one IOC
-docker run --rm --env-file .env 3nricher:latest query 8.8.8.8
-
-# Enrich a file (persistent cache and history)
-mkdir -p out
-docker run --rm \
-  --env-file .env \
-  -v 3nricher-cache:/app/cache \
-  -v 3nricher-data:/app/data \
-  -v $(pwd)/iocs.txt:/data/iocs.txt:ro \
-  -v $(pwd)/out:/data/out \
-  3nricher:latest enrich -f /data/iocs.txt -o /data/out/report
-```
-
-### Persistence
-
-| Item | Location | Notes |
-|------|----------|-------|
-| Code | Baked into image | Application logic |
-| Secrets (`.env`) | Injected at runtime | Never stored in the image |
-| Input (`iocs.txt`) | Bind mount, read-only | Host file |
-| Output (`out/`) | Bind mount, read-write | Reports visible on host |
-| Cache | Named volume `3nricher-cache` | Persists across runs |
-| History DB | Named volume `3nricher-data` | Persists across runs |
-
-Remove volumes with `make clean-volumes`.
+See the `Makefile` for all commands.
 
 ## Architecture
 
 ```text
-3nricher.py            CLI orchestrator (subcommands: enrich, query)
-enrichment.py          Parallel and sequential enrichment dispatcher
-config.py              Central config; CWD-independent .env loading
-logging_setup.py       Structured logging configuration
-scoring.py             Multi-source weighted risk scoring
-rationale.py           Per-IOC score explanation builder
-recency.py             Age-based weighting multipliers
-report.py              JSON and CSV report writers
+3nricher.py            CLI orchestrator (enrich and query subcommands)
+enrichment.py          Parallel and sequential dispatcher
 cli.py                 Console script entry point
-cli_query.py           Single-IOC query mode
+cli_query.py           Single-IOC formatted output
+attck.py               ATT&CK technique mapper
+attck_loader.py        YAML mapping loader
+scoring.py             Weighted risk scoring
+rationale.py           Score explanation
+recency.py             Age-based multipliers
+report.py              JSON and CSV writers
+config.py              Centralized configuration
+logging_setup.py       Structured logging
 
-sources/
-  base.py              HTTP wrapper with retry and exponential backoff
-  limiter.py           Thread-safe token bucket rate limiter
-  virustotal.py        VirusTotal v3 API
-  abuseipdb.py         AbuseIPDB v2 API
-  malwarebazaar.py     MalwareBazaar API
-  urlhaus.py           URLhaus API
-  otx.py               AlienVault OTX API
-
-storage/
-  cache.py             SQLite-backed HTTP cache (manual hit/miss tracking)
-  db.py                SQLite schema and transaction manager
-  history.py           record_run, get_ioc_history, get_recent_runs, get_stats
-
-tests/                 97 tests (pytest, responses for HTTP mocking)
+sources/               8 source modules, base.py, limiter.py
+storage/               SQLite cache and enrichment history
+attck_mappings/        YAML mappings (official and community)
+tests/                 172 tests
 ```
 
 ## Testing
@@ -377,82 +453,68 @@ tests/                 97 tests (pytest, responses for HTTP mocking)
 python -m pytest -v
 ```
 
-The suite has 97 tests covering:
-
-- Token bucket behavior (burst, throttle, timeout, invalid arguments)
-- IOC type detection
-- Risk scoring (floors, allowlist, caps, recency)
-- Rationale formatting for all status types
-- Source modules with mocked HTTP (no live API calls)
-- Parallel and sequential orchestration, including order preservation
-- HTTP cache (session, stats, enable/disable, path handling)
-- Persistence (schema, `record_run`, deduplication, history queries, stats)
-- CLI query mode (exit codes, source formatting, JSON decoding)
-
-CI runs on every push against Python 3.11 and 3.12.
-
-## Performance
-
-| IOCs | Sequential | Parallel (10 workers) | Cold to warm cache |
-|-----:|-----------:|----------------------:|-------------------:|
-| 4 | ~22 s | ~14 s | 14.7 s to 2.6 s |
-| 100 | ~25 min | ~3 min | not measured |
-
-Throughput is bounded by the slowest API rate limit. On the VirusTotal free tier (4 requests/min), large batches are limited by that quota. Caching reduces repeat runs by about 17x.
+172 tests cover IOC detection, scoring, rationale, recency, all 8 sources, ATT&CK
+mapping, caching, persistence, and query mode. All HTTP responses are mocked. CI
+runs on Python 3.11 and 3.12.
 
 ## Known Limitations
 
-- **Domain detection** is regex-based and not validated against the TLD list.
-- **URLhaus** support is host-level only; URL-level lookups are not implemented.
-- **No ATT&CK mapping.** MalwareBazaar and OTX tags are not yet mapped to MITRE techniques (planned for Iteration 6).
-- **Timestamp precision** in SQLite is one second, so ordering within the same second is undefined. Adding `%f` to the schema would fix this.
-- **Cache scope** is per process. Parallel instances do not share a cache; a Redis backend would be needed.
+- **Reputation blind spot.** Fresh IOCs (new domains, cloud IPs, new hashes) may
+  return Unknown because no source has data yet. Iteration 7b adds WHOIS domain
+  age and ASN classification to address this.
+- **Regex-based domain detection.** Domains are not TLD-validated.
+- **URLhaus is host-level only.** URL-level lookups are not supported.
+- **SQLite timestamps have 1-second precision.** Order between same-second
+  enrichments is undefined.
+- **Per-process cache.** Multiple instances do not share a cache.
+- **Curated ATT&CK mappings.** 5 malware families are mapped. PRs welcome.
+- **No recency weighting for VirusTotal or MalwareBazaar.** A known sample stays
+  known.
 
 ## Roadmap
 
-| Iteration | Scope | Status |
-|-----------|-------|--------|
-| 1 | VirusTotal-only MVP | Done |
-| 2 | Multi-source enrichment, CSV, structured logging | Done |
-| 2.1 | Scoring floors, allowlist, config extraction | Done |
-| 3 | Rate limiting, retry, OTX, tests, CI | Done |
-| 4 | Parallel enrichment, score rationale, recency weighting | Done |
-| 5 | Caching, persistence, Docker, CLI query mode, packaging | Done |
-| 6 | MITRE ATT&CK mapping, three additional sources | Planned |
-| 7 | PCAP input mode (Scapy) | Planned |
-| 8 | Local web dashboard (FastAPI, Chart.js) | Planned |
-| 9 | Live log sensor integration | Planned |
+- [x] **Iteration 1:** VirusTotal-only MVP
+- [x] **Iteration 2:** Multi-source, CSV export, structured logging
+- [x] **Iteration 2.1:** Scoring floors, allowlist
+- [x] **Iteration 3:** Rate limiting, retry, OTX, tests, CI
+- [x] **Iteration 4:** Parallel enrichment, score rationale, recency
+- [x] **Iteration 5:** Caching, persistence, Docker, query mode, packaging
+- [x] **Iteration 6:** MITRE ATT&CK mapping, GreyNoise, ThreatFox, Feodo
+- [x] **Iteration 7a:** Unknown verdict, hybrid VT scoring, confidence indicator
+- [ ] **Iteration 7b:** Freshness detection (WHOIS, ASN classification)
+- [ ] **Iteration 7c:** PCAP input mode (Scapy)
+- [ ] **Iteration 8:** Local web dashboard (FastAPI, Chart.js)
+- [ ] **Iteration 9:** Live log sensor integration
+- [ ] **Iteration 10:** Community scaffolding, PyPI publishing
 
 ## Version History
 
 | Tag | Iteration |
 |-----|-----------|
-| v0.1.0 | VirusTotal-only MVP |
-| v0.2.0 | Multi-source enrichment |
-| v0.2.1 | Scoring floors and allowlist |
-| v0.3.0 | Rate limiting, retry, OTX, tests, CI |
-| v0.4.0 | Parallel enrichment, rationale, recency |
-| v0.5.0 | Caching, persistence, Docker, query mode |
-
-To inspect an earlier release:
-
-```bash
-git checkout v0.4.0
-```
+| `v0.1.0` | Iteration 1: VirusTotal-only MVP |
+| `v0.2.0` | Iteration 2: Multi-source |
+| `v0.2.1` | Scoring floors and allowlist |
+| `v0.3.0` | Rate limiting, retry, OTX, tests, CI |
+| `v0.4.0` | Parallel enrichment, rationale, recency |
+| `v0.5.0` | Caching, persistence, Docker, query mode |
+| `v0.6.0` | MITRE ATT&CK mapping and 3 new sources |
+| `v0.7.1` | Iteration 7a.1: hybrid VT scoring, Unknown verdict, confidence |
 
 ## Contributing
 
-To add a new source:
+Contributions are welcome.
+
+### Add a source
 
 1. Create `sources/yoursource.py`.
 2. Implement `query(ioc: str, ioc_type: str) -> dict`.
-3. Return `{"status": "ok", ...}` or `{"status": "not_applicable", ...}`.
-4. Use `safe_request()` from `sources/base.py` for HTTP calls.
-5. Register the source in `enrichment.py::enrich_one()`.
-6. Add tests in `tests/test_sources.py`.
-7. Add the scoring weight in `scoring.py` and the explanation in `rationale.py`.
+3. Register it in `enrichment.py::enrich_one()`.
+4. Add tests in `tests/test_sources.py`.
 
-No changes to the orchestrator are required.
+### Add an ATT&CK mapping
+
+See [`attck_mappings/README.md`](attck_mappings/README.md). Put community
+mappings in `attck_mappings/community/`.
 
 ## License
 
@@ -460,10 +522,12 @@ Released under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
-- [VirusTotal](https://www.virustotal.com/): malware intelligence API
-- [AbuseIPDB](https://www.abuseipdb.com/): IP reputation API
-- [abuse.ch](https://abuse.ch/): MalwareBazaar and URLhaus
+- [VirusTotal](https://www.virustotal.com/): malware intelligence
+- [AbuseIPDB](https://www.abuseipdb.com/): IP reputation
+- [abuse.ch](https://abuse.ch/): MalwareBazaar, URLhaus, ThreatFox, Feodo Tracker
 - [AlienVault OTX](https://otx.alienvault.com/): community threat intelligence
-- [python-dotenv](https://github.com/theskumar/python-dotenv): configuration management
-- [requests-cache](https://github.com/requests-cache/requests-cache): HTTP caching
-- [tqdm](https://github.com/tqdm/tqdm): progress bars
+- [GreyNoise](https://www.greynoise.io/): scanner classification
+- [MITRE ATT&CK](https://attack.mitre.org/): technique framework
+- [python-dotenv](https://github.com/theskumar/python-dotenv)
+- [requests-cache](https://github.com/requests-cache/requests-cache)
+- [tqdm](https://github.com/tqdm/tqdm)
