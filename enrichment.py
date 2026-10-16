@@ -23,8 +23,11 @@ Design notes:
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from sources import virustotal, abuseipdb, malwarebazaar, urlhaus, otx, greynoise, threatfox, feodo
-from scoring import calculate_risk
+from sources import (
+    virustotal, abuseipdb, malwarebazaar, urlhaus, otx,
+    greynoise, threatfox, feodo,
+)
+from scoring import calculate_risk, compute_confidence
 from rationale import build_rationale
 from attck import map_to_attck
 
@@ -53,10 +56,10 @@ def _detect_ioc_type(ioc: str) -> str:
 # ---------------------------------------------------------------
 def enrich_one(ioc: str) -> dict:
     """
-    Enrich a single IOC across all sources.
+    Enrich a single IOC across all 8 sources.
 
     Returns a normalized dict with:
-        ioc, type, risk, risk_score, rationale, sources
+        ioc, type, risk, risk_score, confidence, rationale, attack, sources
     """
     ioc_type = _detect_ioc_type(ioc)
 
@@ -75,8 +78,8 @@ def enrich_one(ioc: str) -> dict:
         sources_result, ioc=ioc, ioc_type=ioc_type
     )
 
+    confidence = compute_confidence(sources_result)
     rationale = build_rationale(sources_result, score, risk)
-    
     attack = map_to_attck(sources_result)
 
     return {
@@ -84,6 +87,7 @@ def enrich_one(ioc: str) -> dict:
         "type": ioc_type,
         "risk": risk,
         "risk_score": score,
+        "confidence": confidence,
         "rationale": rationale,
         "attack": attack,
         "sources": sources_result,
@@ -97,6 +101,7 @@ def _error_result(ioc: str, reason: str) -> dict:
         "type": "unknown",
         "risk": "Unknown",
         "risk_score": 0,
+        "confidence": "None",
         "rationale": [f"Enrichment failed: {reason}"],
         "attack": [],
         "sources": {},
@@ -148,7 +153,6 @@ def enrich_all_parallel(iocs: list[str], workers: int = 10) -> list[dict]:
     results: list[dict | None] = [None] * len(iocs)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        # Map each future to its original index to preserve order
         futures = {
             pool.submit(enrich_one, ioc): i
             for i, ioc in enumerate(iocs)
@@ -172,16 +176,20 @@ def enrich_all_parallel(iocs: list[str], workers: int = 10) -> list[dict]:
                 log.exception("Unexpected error enriching %s", ioc)
                 results[idx] = _error_result(ioc, str(e))
 
-    # Type narrowing: results should now be all dicts
-    return [r if r is not None else _error_result(iocs[i], "missing")
-            for i, r in enumerate(results)]
+    return [
+        r if r is not None else _error_result(iocs[i], "missing")
+        for i, r in enumerate(results)
+    ]
 
 
 # ---------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------
-def enrich_all(iocs: list[str], parallel: bool = True,
-               workers: int = 10) -> list[dict]:
+def enrich_all(
+    iocs: list[str],
+    parallel: bool = True,
+    workers: int = 10,
+) -> list[dict]:
     """
     Enrich a list of IOCs, choosing sequential or parallel based on args.
 
@@ -196,7 +204,6 @@ def enrich_all(iocs: list[str], parallel: bool = True,
     if not iocs:
         return []
 
-    # Small lists: sequential overhead is lower
     if parallel and len(iocs) < 3:
         log.debug("Small IOC list (%d) — running sequential", len(iocs))
         return enrich_all_sequential(iocs)
