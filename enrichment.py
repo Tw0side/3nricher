@@ -79,7 +79,10 @@ def enrich_one(ioc: str) -> dict:
     )
 
     confidence = compute_confidence(sources_result)
-    rationale = build_rationale(sources_result, score, risk)
+    rationale = build_rationale(
+        sources_result, score, risk,
+        ioc=ioc, ioc_type=ioc_type,
+    )
     attack = map_to_attck(sources_result)
 
     return {

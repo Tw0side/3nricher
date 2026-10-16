@@ -27,6 +27,7 @@ Design:
   see that a source was consulted, not silently skipped).
 - Error sources are called out explicitly.
 - If label is "Unknown", the total line explains why.
+- Allowlisted IOCs get a short, clean rationale — no per-source noise.
 """
 import logging
 
@@ -35,18 +36,37 @@ from config import Config
 log = logging.getLogger("3nricher.rationale")
 
 
-def build_rationale(sources: dict, score: int, label: str) -> list[str]:
+def build_rationale(
+    sources: dict,
+    score: int,
+    label: str,
+    ioc: str = "",
+    ioc_type: str = "",
+) -> list[str]:
     """
     Build a list of human-readable rationale lines for an IOC's score.
 
     Args:
-        sources: Dict of {source_name: {"status": ..., ...}}
-        score:   Final numeric score from calculate_risk().
-        label:   Final label from calculate_risk().
+        sources:  Dict of {source_name: {"status": ..., ...}}
+        score:    Final numeric score from calculate_risk().
+        label:    Final label from calculate_risk().
+        ioc:      Optional IOC value, used for allowlist check.
+        ioc_type: Optional IOC type, used for allowlist check.
 
     Returns:
         List of strings, one per source + a final total line.
     """
+    # ---- Allowlist short-circuits the rationale ----
+    # If the IOC is allowlisted, calculate_risk() returns (0, "Low") without
+    # examining sources. The rationale should match — no per-source noise.
+    if ioc and ioc_type:
+        from scoring import _is_allowlisted
+        if _is_allowlisted(ioc, ioc_type):
+            return [
+                f"Allowlisted: {ioc} ({ioc_type})",
+                "Total: 0 (Low — allowlisted)",
+            ]
+
     lines: list[str] = []
 
     # ---- VirusTotal ----

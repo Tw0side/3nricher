@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3nricher — CTI Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+<div class="max-w-7xl mx-auto p-6">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight">3nricher</h1>
+            <p class="text-slate-400 text-sm">CTI Enrichment Dashboard</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="last-run" class="text-xs text-slate-500"></span>
+            <button onclick="refreshAll()"
+                    class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm transition">
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Total IOCs</div>
+            <div id="kpi-total" class="text-3xl font-bold">—</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">High / Critical</div>
+            <div id="kpi-high" class="text-3xl font-bold text-red-400">—</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Enrichment Runs</div>
+            <div id="kpi-runs" class="text-3xl font-bold">—</div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Total Enrichments</div>
+            <div id="kpi-enrichments" class="text-3xl font-bold">—</div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <h2 class="text-sm uppercase tracking-wider text-slate-400 mb-4">Risk Distribution</h2>
+            <div style="position: relative; height: 240px;">
+                <canvas id="risk-chart"></canvas>
+            </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <h2 class="text-sm uppercase tracking-wider text-slate-400 mb-4">Source Coverage</h2>
+            <div style="position: relative; height: 240px;">
+                <canvas id="source-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- IOC Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 class="text-sm uppercase tracking-wider text-slate-400">Enriched IOCs</h2>
+            <div class="flex items-center gap-2">
+                <label for="risk-filter" class="text-xs text-slate-500">Filter:</label>
+                <select id="risk-filter" onchange="loadIocs()"
+                        class="bg-slate-800 border border-slate-700 rounded px-3 py-1 text-sm">
+                    <option value="">All</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </div>
+        </div>
+
+        <table class="w-full text-sm">
+            <thead class="bg-slate-900/50 border-b border-slate-800">
+                <tr class="text-left text-slate-400">
+                    <th class="p-3 cursor-pointer hover:text-slate-200" onclick="sortBy('ioc')">IOC ▲▼</th>
+                    <th class="p-3 cursor-pointer hover:text-slate-200" onclick="sortBy('type')">Type ▲▼</th>
+                    <th class="p-3 cursor-pointer hover:text-slate-200" onclick="sortBy('risk')">Risk ▲▼</th>
+                    <th class="p-3 cursor-pointer hover:text-slate-200" onclick="sortBy('risk_score')">Score ▲▼</th>
+                    <th class="p-3">Enriched</th>
+                </tr>
+            </thead>
+            <tbody id="ioc-table-body">
+                <tr><td colspan="5" class="p-5 text-center text-slate-500">Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-8 text-center text-xs text-slate-600">
+        3nricher v0.8.0 — local dashboard
+    </footer>
+</div>
+
+<!-- Detail Modal -->
+<div id="modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between p-5 border-b border-slate-800">
+            <h2 id="modal-title" class="text-lg font-mono font-bold">—</h2>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200 text-2xl leading-none">×</button>
+        </div>
+        <div id="modal-body" class="p-5 text-sm space-y-4"></div>
+    </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------
+// State
+// ---------------------------------------------------------------
+let currentIocs = [];
+let sortKey = 'risk_score';
+let sortDir = 'desc';
+let riskChartInstance = null;
+let sourceChartInstance = null;
+
+// ---------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------
+async function api(path) {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+}
+
+// ---------------------------------------------------------------
+// Load stats + charts
+// ---------------------------------------------------------------
+async function loadStats() {
+    const s = await api('/api/stats');
+    document.getElementById('kpi-total').textContent = s.total_iocs;
+    document.getElementById('kpi-runs').textContent = s.total_runs;
+    document.getElementById('kpi-enrichments').textContent = s.total_enrichments;
+    document.getElementById('last-run').textContent = s.last_run ? `Last: ${s.last_run}` : '';
+
+    const dist = s.risk_distribution || {};
+    const highCritical = (dist.High || 0) + (dist.Critical || 0);
+    document.getElementById('kpi-high').textContent = highCritical;
+
+    renderRiskChart(dist);
+}
+
+function renderRiskChart(dist) {
+    const canvas = document.getElementById('risk-chart');
+
+    // Destroy previous instance to avoid duplication on refresh
+    if (riskChartInstance) {
+        riskChartInstance.destroy();
+    }
+
+    const labels = ['Critical', 'High', 'Medium', 'Low', 'Unknown'];
+    const data = labels.map(l => dist[l] || 0);
+    const colors = ['#dc2626', '#ea580c', '#ca8a04', '#475569', '#334155'];
+
+    riskChartInstance = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{ data: data, backgroundColor: colors, borderWidth: 0 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#cbd5e1' } } }
+        }
+    });
+}
+
+async function loadSourceChart() {
+    const data = await api('/api/iocs?limit=1000');
+    const counts = {};
+    for (const ioc of data.iocs) {
+        for (const [name, s] of Object.entries(ioc.sources || {})) {
+            if (s.status === 'ok') counts[name] = (counts[name] || 0) + 1;
+        }
+    }
+
+    const canvas = document.getElementById('source-chart');
+
+    if (sourceChartInstance) {
+        sourceChartInstance.destroy();
+    }
+
+    sourceChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(counts),
+            datasets: [{
+                label: 'Successful lookups',
+                data: Object.values(counts),
+                backgroundColor: '#3b82f6'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+            }
+        }
+    });
+}
+
+// ---------------------------------------------------------------
+// IOC table
+// ---------------------------------------------------------------
+async function loadIocs() {
+    const risk = document.getElementById('risk-filter').value;
+    const url = risk ? `/api/iocs?risk=${risk}&limit=200` : '/api/iocs?limit=200';
+    const data = await api(url);
+    currentIocs = data.iocs;
+    renderTable();
+}
+
+function sortBy(key) {
+    if (sortKey === key) {
+        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortKey = key;
+        sortDir = 'desc';
+    }
+    renderTable();
+}
+
+function renderTable() {
+    const sorted = [...currentIocs].sort((a, b) => {
+        let av = a[sortKey], bv = b[sortKey];
+        if (typeof av === 'string') av = av.toLowerCase();
+        if (typeof bv === 'string') bv = bv.toLowerCase();
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const tbody = document.getElementById('ioc-table-body');
+    if (sorted.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-5 text-center text-slate-500">No IOCs match.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = sorted.map(ioc => `
+        <tr class="border-b border-slate-800 hover:bg-slate-800/50 cursor-pointer"
+            onclick="showDetail('${escapeAttr(ioc.ioc)}')">
+            <td class="p-3 font-mono text-xs">${escapeHtml(ioc.ioc)}</td>
+            <td class="p-3 text-slate-400">${escapeHtml(ioc.type || '')}</td>
+            <td class="p-3">
+                <span class="px-2 py-1 rounded text-xs font-semibold">${escapeHtml(ioc.risk || '?')}</span>
+            </td>
+            <td class="p-3 font-mono">${ioc.risk_score ?? ''}</td>
+            <td class="p-3 text-slate-500 text-xs">${escapeHtml(ioc.enriched_at || '')}</td>
+        </tr>
+    `).join('');
+}
+
+// ---------------------------------------------------------------
+// Detail modal
+// ---------------------------------------------------------------
+async function showDetail(ioc) {
+    try {
+        const detail = await api(`/api/ioc/${encodeURIComponent(ioc)}`);
+        document.getElementById('modal-title').textContent = detail.ioc;
+        document.getElementById('modal-body').innerHTML = renderDetail(detail);
+        const modal = document.getElementById('modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    } catch (e) {
+        alert(`Failed to load detail: ${e.message}`);
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+function renderDetail(detail) {
+    const latest = detail.latest || {};
+    const sources = latest.sources || {};
+    const rationale = latest.rationale || [];
+
+    const sourceRows = Object.entries(sources).map(([name, s]) => {
+        const status = s.status || 'unknown';
+        const color = status === 'ok' ? 'text-green-400'
+                    : status === 'error' ? 'text-red-400'
+                    : status === 'not_found' ? 'text-slate-500'
+                    : 'text-slate-600';
+        return `
+            <tr class="border-b border-slate-800">
+                <td class="py-2 font-mono text-xs">${escapeHtml(name)}</td>
+                <td class="py-2 ${color} text-xs">${escapeHtml(status)}</td>
+                <td class="py-2 text-xs text-slate-400">${escapeHtml(s.reason || '')}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <div class="text-xs text-slate-500 uppercase">Type</div>
+                <div class="font-mono">${escapeHtml(detail.type)}</div>
+            </div>
+            <div>
+                <div class="text-xs text-slate-500 uppercase">Latest Risk</div>
+                <div>
+                    <span class="px-2 py-1 rounded text-xs font-semibold">${escapeHtml(latest.risk_label || '?')}</span>
+                    <span class="ml-2 font-mono">${latest.risk_score ?? ''}</span>
+                </div>
+            </div>
+            <div>
+                <div class="text-xs text-slate-500 uppercase">First Seen</div>
+                <div class="text-slate-300 text-xs">${escapeHtml(detail.first_seen || '')}</div>
+            </div>
+            <div>
+                <div class="text-xs text-slate-500 uppercase">Last Enriched</div>
+                <div class="text-slate-300 text-xs">${escapeHtml(latest.enriched_at || '')}</div>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h3 class="text-xs text-slate-500 uppercase mb-2">Rationale</h3>
+            <div class="bg-slate-950 rounded p-3 font-mono text-xs space-y-1">
+                ${rationale.map(r => `<div class="text-slate-300">${escapeHtml(r)}</div>`).join('')}
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <h3 class="text-xs text-slate-500 uppercase mb-2">Sources</h3>
+            <table class="w-full text-left">
+                <thead class="text-xs text-slate-500 border-b border-slate-800">
+                    <tr><th class="py-1">Source</th><th class="py-1">Status</th><th class="py-1">Detail</th></tr>
+                </thead>
+                <tbody>${sourceRows}</tbody>
+            </table>
+        </div>
+    `;
+}
+
+// ---------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------
+function escapeHtml(s) {
+    if (s === null || s === undefined) return '';
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function escapeAttr(s) {
+    return String(s).replace(/'/g, "\\'");
+}
+
+// ---------------------------------------------------------------
+// Refresh + init
+// ---------------------------------------------------------------
+async function refreshAll() {
+    try {
+        await loadStats();
+        await loadSourceChart();
+        await loadIocs();
+    } catch (e) {
+        console.error('Refresh failed:', e);
+    }
+}
+
+// Close modal on Escape
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// Initialize on page load
+refreshAll();
+</script>
+</body>
+</html>
