@@ -5,7 +5,7 @@ Returns the same status contract as the modules in sources/.
 """
 import logging
 from datetime import datetime, timezone
-
+from sources.ipinfo import query as ipinfo_query
 from sources.base import safe_request
 
 log = logging.getLogger(__name__)
@@ -81,12 +81,52 @@ def check_domain_age(domain, now=None):
         "points": freshness_points(days),
         "source": "rdap",
     }
+BULLETPROOF_ASNS = {
+    "AS9009",   # M247
+    "AS49505",  # Selectel
+    "AS200651", # FlokiNET
+    "AS51396",  # Pfcloud
+    "AS208287", # MoreneHost
+    "AS39798",  # MivoCloud
+    "AS200000", # Hostslim
+    "AS49447",  # Alfa Telecom
+    "AS204601", # SkyLink
+    "AS62240",  # Clouvider
+}
 
+BULLETPROOF_ASNS.discard("AS15169")  # Google is legit, remove from list
+BULLETPROOF_ASNS.discard("AS16509")  # Amazon legit, remove
+BULLETPROOF_ASNS.discard("AS14618")  # Amazon legit, remove
+BULLETPROOF_ASNS.discard("AS14061")  # DigitalOcean legit, remove
+BULLETPROOF_ASNS.discard("AS16276")  # OVH legit, remove
+
+
+def check_ip_freshness(ip: str) -> dict:
+    """Score IP freshness based on ASN reputation."""
+    result = ipinfo_query(ip, "ip")
+    if result.get("status") != "ok":
+        return {"status": "not_found",
+                "reason": result.get("reason", "no IPinfo data")}
+
+    asn = result.get("asn", "")
+    if asn in BULLETPROOF_ASNS:
+        return {"status": "ok",
+                "age_days": 0,
+                "points": 0,
+                "asn": asn,
+                "source": "ipinfo",
+                "flag": "bulletproof_asn"}
+    return {"status": "ok",
+            "age_days": 0,
+            "points": 50,
+            "asn": asn,
+            "source": "ipinfo"}
 
 def check_freshness(ioc, ioc_type):
-    """Entry point. Only domains are supported for now."""
-    if ioc_type != "domain":
-        return {"status": "not_applicable",
-                "reason": f"freshness not supported for {ioc_type}"}
-    return check_domain_age(ioc)
-
+    """Entry point. Supports domains and IPs."""
+    if ioc_type == "domain":
+        return check_domain_age(ioc)
+    if ioc_type == "ip":
+        return check_ip_freshness(ioc)
+    return {"status": "not_applicable",
+            "reason": f"freshness not supported for {ioc_type}"}

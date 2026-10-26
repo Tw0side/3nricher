@@ -121,12 +121,35 @@ def test_no_registration_event_is_not_found(monkeypatch):
 
 # ---- entry point ----
 
-@pytest.mark.parametrize("ioc_type", ["ip", "md5", "sha1", "sha256"])
+@pytest.mark.parametrize("ioc_type", ["url", "hash", "email", "cve"])
 def test_non_domain_not_applicable(ioc_type):
-    result = freshness.check_freshness("anything", ioc_type)
+    result = freshness.check_freshness("test-value", ioc_type)
     assert result["status"] == "not_applicable"
-
 
 def test_domain_routes_to_check_domain_age(monkeypatch):
     patch_request(monkeypatch, fake_response(200, rdap("2007-10-09T00:00:00Z")))
     assert freshness.check_freshness("github.com", "domain")["status"] == "ok"
+def test_ip_freshness_ok(monkeypatch):
+    monkeypatch.setattr(
+        "freshness.ipinfo_query",
+        lambda ip, t: {"status": "ok", "asn": "AS15169",
+                       "as_name": "Google LLC", "as_domain": "google.com",
+                       "country_code": "US", "source": "ipinfo"},
+    )
+    result = freshness.check_freshness("8.8.8.8", "ip")
+    assert result["status"] == "ok"
+    assert result["asn"] == "AS15169"
+    assert result["points"] == 50  # Google is legit, not bulletproof
+
+
+def test_ip_freshness_bulletproof(monkeypatch):
+    monkeypatch.setattr(
+        "freshness.ipinfo_query",
+        lambda ip, t: {"status": "ok", "asn": "AS9009",
+                       "as_name": "M247", "as_domain": "m247.com",
+                       "country_code": "GB", "source": "ipinfo"},
+    )
+    result = freshness.check_freshness("1.2.3.4", "ip")
+    assert result["status"] == "ok"
+    assert result["points"] == 0
+    assert result["flag"] == "bulletproof_asn"
