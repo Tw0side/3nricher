@@ -21,6 +21,7 @@ Design notes:
   we fall back to periodic print statements.
 """
 import logging
+from freshness import check_freshness
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sources import (
@@ -73,7 +74,7 @@ def enrich_one(ioc: str) -> dict:
         "threatfox": threatfox.query(ioc, ioc_type),
         "feodo": feodo.query(ioc, ioc_type),
     }
-
+    freshness_result = check_freshness(ioc, ioc_type)
     score, risk = calculate_risk(
         sources_result, ioc=ioc, ioc_type=ioc_type
     )
@@ -93,8 +94,9 @@ def enrich_one(ioc: str) -> dict:
         "confidence": confidence,
         "rationale": rationale,
         "attack": attack,
+        "freshness": freshness_result,
         "sources": sources_result,
-    }
+       }
 
 
 def _error_result(ioc: str, reason: str) -> dict:

@@ -44,7 +44,7 @@ class Config:
     ABUSE_CH_API_KEY: str | None = os.getenv("ABUSE_CH_API_KEY")
     OTX_API_KEY: str | None = os.getenv("OTX_API_KEY")
     GREYNOISE_API_KEY: str | None = os.getenv("GREYNOISE_API_KEY")
-
+    IPINFO_API_KEY: str | None = os.getenv("IPINFO_API_KEY")
     # ---- Behavior ----
     VT_SLEEP_SECONDS: int = int(os.getenv("VT_SLEEP_SECONDS", "16"))
     HTTP_TIMEOUT: int = int(os.getenv("HTTP_TIMEOUT", "15"))
