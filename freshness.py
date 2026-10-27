@@ -109,18 +109,16 @@ def check_ip_freshness(ip: str) -> dict:
                 "reason": result.get("reason", "no IPinfo data")}
 
     asn = result.get("asn", "")
+    out = {"status": "ok",
+           "age_days": 0,
+           "points": 0 if asn in BULLETPROOF_ASNS else 50,
+           "asn": asn,
+           "as_name": result.get("as_name", ""),
+           "geo": result.get("geo", {}),
+           "source": "ipinfo"}
     if asn in BULLETPROOF_ASNS:
-        return {"status": "ok",
-                "age_days": 0,
-                "points": 0,
-                "asn": asn,
-                "source": "ipinfo",
-                "flag": "bulletproof_asn"}
-    return {"status": "ok",
-            "age_days": 0,
-            "points": 50,
-            "asn": asn,
-            "source": "ipinfo"}
+        out["flag"] = "bulletproof_asn"
+    return out
 
 def check_freshness(ioc, ioc_type):
     """Entry point. Supports domains and IPs."""

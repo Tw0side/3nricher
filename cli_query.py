@@ -114,7 +114,13 @@ def _print_summary(result: dict) -> None:
         print(f"  {name:14s} {status:13s} {detail}")
 
     print()
+    # Freshness
+    freshness = result.get("freshness", {})
+    f_status = freshness.get("status", "unknown")
+    f_detail = _freshness_detail(freshness)
+    print(f"Freshness:   {f_status:13s} {f_detail}")
 
+    print()
     # Rationale
     print("Rationale:")
     for line in result.get("rationale", []):
@@ -197,3 +203,42 @@ def _print_history(ioc: str) -> None:
         score = h.get("risk_score", "")
         run = h.get("run_id", "")[:8]
         print(f"  [{ts}] {label} ({score}) — run {run}")
+def _freshness_detail(f: dict) -> str:
+    """Return a human-readable detail string for a freshness result."""
+    status = f.get("status")
+
+    if status == "ok":
+        points = f.get("points", 0)
+        if f.get("source") == "ipinfo":
+            geo = f.get("geo") or {}
+            parts = [f"{f.get('asn', '')} {f.get('as_name', '')}".strip()]
+            place = ", ".join(
+                p for p in (geo.get("city"), geo.get("region"),
+                            geo.get("country")) if p
+            )
+            if place:
+                parts.append(place)
+            loc = geo.get("loc", "")
+            if loc:
+                lat, _, lon = loc.partition(",")
+                parts.append(f"{lat},{lon}")
+            if f.get("flag") == "bulletproof_asn":
+                parts.append("BULLETPROOF ASN")
+            return f"{' · '.join(parts)} (+{points})"
+        age = f.get("age_days", 0)
+        date = f.get("date", "unknown")
+        return f"registered {date} ({age} days old, +{points})"
+    if status == "not_found":
+        return f"({f.get('reason', 'not found')})"
+    if status == "error":
+        return f"({f.get('reason', 'error')})"
+    if status == "not_applicable":
+        return f"({f.get('reason', 'not applicable')})"
+    return ""
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python cli_query.py <ioc>", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(run_query(sys.argv[1]))
