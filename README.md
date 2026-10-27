@@ -8,7 +8,7 @@
 **Multi-source IOC enrichment pipeline with MITRE ATT&CK mapping.**
 
 3nricher takes Indicators of Compromise (IPs, domains, file hashes), enriches them
-against eight threat intelligence sources in parallel, applies weighted risk scoring
+against nine threat intelligence sources in parallel, applies weighted risk scoring
 with a per-source rationale, and maps detected malware families to MITRE ATT&CK
 techniques. It writes structured JSON and CSV reports for SOC triage, threat
 hunting, and detection engineering.
@@ -23,6 +23,7 @@ per IOC from minutes to seconds.
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Sources](#sources)
+- [IP Freshness and Geolocation](#ip-freshness-and-geolocation)
 - [MITRE ATT&CK Mapping](#mitre-attck-mapping)
 - [Risk Scoring](#risk-scoring)
 - [Output Formats](#output-formats)
@@ -39,13 +40,14 @@ per IOC from minutes to seconds.
 
 ## Features
 
-- **Parallel enrichment** across 8 threat intelligence sources
+- **Parallel enrichment** across 9 threat intelligence sources
 - **Weighted risk scoring** with a per-source, human-readable rationale
 - **Unknown verdict** that separates "no data" from "clean"
 - **Confidence indicator** showing how many applicable sources returned data
 - **MITRE ATT&CK mapping** from malware family to technique, with provenance
 - **Allowlist and score floors** to cut false positives and false negatives
 - **Recency weighting** for time-sensitive signals
+- **IP geolocation and freshness scoring** via IPinfo (ASN, org, city, coordinates, bulletproof-hosting detection)
 - **JSON and CSV export** for ticketing, TIP ingestion, or analysis
 - **Local SQLite history** and response caching
 - **Script-friendly exit codes** for pipelines and automation
@@ -54,10 +56,10 @@ per IOC from minutes to seconds.
 
 ```bash
 # Install from GitHub
-pip install git+https://github.com/Tw0side/3nricher.git
+pip install git+[https://github.com/Tw0side/3nricher.git](https://github.com/Tw0side/3nricher.git)
 
 # Or clone and install locally
-git clone https://github.com/Tw0side/3nricher.git
+git clone [https://github.com/Tw0side/3nricher.git](https://github.com/Tw0side/3nricher.git)
 cd 3nricher
 python -m venv venv && source venv/bin/activate
 pip install -e .
@@ -82,6 +84,7 @@ key sharing, and free-tier limits apply per key, so keys are not bundled.
 | abuse.ch (MalwareBazaar, URLhaus, ThreatFox, Feodo) | https://auth.abuse.ch/ | Reasonable use | No |
 | AlienVault OTX | https://otx.alienvault.com/ | 10,000/day | No |
 | GreyNoise | https://viz.greynoise.io/account/ | 50/week | No |
+| IPinfo | https://ipinfo.io/account/token | Unlimited Lite, 50,000/month Core | No |
 
 Create a `.env` file in the directory you run 3nricher from:
 
@@ -91,6 +94,7 @@ ABUSE_API_KEY=your_abuseipdb_key_here
 ABUSE_CH_API_KEY=your_abuse_ch_key_here
 OTX_API_KEY=your_otx_key_here
 GREYNOISE_API_KEY=your_greynoise_key_here
+IPINFO_API_KEY=your_ipinfo_token_here
 LOG_LEVEL=INFO
 ```
 
@@ -134,6 +138,7 @@ Sources:
   greynoise      not_applicable (GreyNoise only supports IPs)
   threatfox      not_found
   feodo          not_applicable (Feodo Tracker only supports IPs)
+  ipinfo         not_applicable (IPinfo only supports IPs)
 
 Rationale:
   VirusTotal: 66/71 malicious (92%) -> +47
@@ -194,17 +199,37 @@ fi
 | [GreyNoise](https://www.greynoise.io/) | IP | `key` header | Mass scanner vs. targeted activity |
 | [ThreatFox](https://threatfox.abuse.ch/) | IP, domain, hash | `Auth-Key` header | Malware C2 tracking |
 | [Feodo Tracker](https://feodotracker.abuse.ch/) | IP | `Auth-Key` header | Botnet C2 blocklist |
+| [IPinfo](https://ipinfo.io/) | IP | `token` param | ASN, organization, geolocation, freshness |
 
 ### Applicability matrix
 
 Each source declares which IOC types it supports. Unsupported pairs return
 `not_applicable` and are excluded from scoring and confidence.
 
-| IOC type | VT | AbuseIPDB | MB | URLhaus | OTX | GreyNoise | ThreatFox | Feodo |
-|----------|:--:|:---------:|:--:|:-------:|:---:|:---------:|:---------:|:-----:|
-| IP | Yes | Yes | No | Yes | Yes | Yes | Yes | Yes |
-| Domain | Yes | No | No | Yes | Yes | No | Yes | No |
-| Hash | Yes | No | Yes | No | Yes | No | Yes | No |
+| IOC type | VT | AbuseIPDB | MB | URLhaus | OTX | GreyNoise | ThreatFox | Feodo | IPinfo |
+|----------|:--:|:---------:|:--:|:-------:|:---:|:---------:|:---------:|:-----:|:------:|
+| IP | Yes | Yes | No | Yes | Yes | Yes | Yes | Yes | Yes |
+| Domain | Yes | No | No | Yes | Yes | No | Yes | No | No |
+| Hash | Yes | No | Yes | No | Yes | No | Yes | No | No |
+
+## IP Freshness and Geolocation
+
+IPs get a freshness score based on ASN reputation via IPinfo:
+
+- **Bulletproof-hosting ASNs** (M247, Selectel, FlokiNET, and similar) score **0**
+  and are flagged `bulletproof_asn`.
+- All other IPs score **50**.
+- The CLI freshness line shows ASN, organization, city/region/country, and
+  lat/long coordinates.
+
+Example:
+
+```text
+Freshness:   ok            AS55933 Cloudie Limited · Tung Chung, Islands, HK · 22.29,113.94 (+50)
+```
+
+Geolocation reflects the IP's registered network location, not necessarily the
+user's physical location.
 
 ## MITRE ATT&CK Mapping
 
@@ -243,7 +268,7 @@ aliases:
   - wcry
 category: ransomware
 references:
-  - https://attack.mitre.org/software/S0366/
+  - [https://attack.mitre.org/software/S0366/](https://attack.mitre.org/software/S0366/)
 techniques:
   - id: T1486
     name: Data Encrypted for Impact
@@ -437,14 +462,15 @@ attck_loader.py        YAML mapping loader
 scoring.py             Weighted risk scoring
 rationale.py           Score explanation
 recency.py             Age-based multipliers
+freshness.py           Domain age and IP ASN freshness scoring
 report.py              JSON and CSV writers
 config.py              Centralized configuration
 logging_setup.py       Structured logging
 
-sources/               8 source modules, base.py, limiter.py
+sources/               9 source modules, base.py, limiter.py
 storage/               SQLite cache and enrichment history
 attck_mappings/        YAML mappings (official and community)
-tests/                 172 tests
+tests/                 207 tests
 ```
 
 ## Testing
@@ -453,15 +479,16 @@ tests/                 172 tests
 python -m pytest -v
 ```
 
-172 tests cover IOC detection, scoring, rationale, recency, all 8 sources, ATT&CK
+207 tests cover IOC detection, scoring, rationale, recency, all 9 sources, ATT&CK
 mapping, caching, persistence, and query mode. All HTTP responses are mocked. CI
 runs on Python 3.11 and 3.12.
 
 ## Known Limitations
 
 - **Reputation blind spot.** Fresh IOCs (new domains, cloud IPs, new hashes) may
-  return Unknown because no source has data yet. Iteration 7b adds WHOIS domain
-  age and ASN classification to address this.
+  return Unknown because no source has data yet. Iteration 7b added WHOIS domain
+  age and IPinfo ASN classification and geolocation to address this for domains
+  and IPs.
 - **Regex-based domain detection.** Domains are not TLD-validated.
 - **URLhaus is host-level only.** URL-level lookups are not supported.
 - **SQLite timestamps have 1-second precision.** Order between same-second
@@ -470,6 +497,8 @@ runs on Python 3.11 and 3.12.
 - **Curated ATT&CK mappings.** 5 malware families are mapped. PRs welcome.
 - **No recency weighting for VirusTotal or MalwareBazaar.** A known sample stays
   known.
+- **IP geolocation is network-level.** Coordinates reflect the IP's registered
+  network location, not a precise device location.
 
 ## Roadmap
 
@@ -481,7 +510,7 @@ runs on Python 3.11 and 3.12.
 - [x] **Iteration 5:** Caching, persistence, Docker, query mode, packaging
 - [x] **Iteration 6:** MITRE ATT&CK mapping, GreyNoise, ThreatFox, Feodo
 - [x] **Iteration 7a:** Unknown verdict, hybrid VT scoring, confidence indicator
-- [ ] **Iteration 7b:** Freshness detection (WHOIS, ASN classification)
+- [x] **Iteration 7b:** Freshness detection (WHOIS domain age, IPinfo ASN classification and geolocation)
 - [ ] **Iteration 7c:** PCAP input mode (Scapy)
 - [ ] **Iteration 8:** Local web dashboard (FastAPI, Chart.js)
 - [ ] **Iteration 9:** Live log sensor integration
@@ -499,6 +528,7 @@ runs on Python 3.11 and 3.12.
 | `v0.5.0` | Caching, persistence, Docker, query mode |
 | `v0.6.0` | MITRE ATT&CK mapping and 3 new sources |
 | `v0.7.1` | Iteration 7a.1: hybrid VT scoring, Unknown verdict, confidence |
+| `v0.7.2` | Iteration 7b.2: IPinfo source, IP geolocation, bulletproof ASN freshness scoring |
 
 ## Contributing
 
@@ -527,6 +557,7 @@ Released under the [MIT License](LICENSE).
 - [abuse.ch](https://abuse.ch/): MalwareBazaar, URLhaus, ThreatFox, Feodo Tracker
 - [AlienVault OTX](https://otx.alienvault.com/): community threat intelligence
 - [GreyNoise](https://www.greynoise.io/): scanner classification
+- [IPinfo](https://ipinfo.io/): IP geolocation and ASN data
 - [MITRE ATT&CK](https://attack.mitre.org/): technique framework
 - [python-dotenv](https://github.com/theskumar/python-dotenv)
 - [requests-cache](https://github.com/requests-cache/requests-cache)
